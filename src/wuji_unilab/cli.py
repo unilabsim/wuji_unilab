@@ -27,7 +27,9 @@ def _run(mode):
     register_resolvers()
     generated = [f"task={TASK_OWNERS[args.task]}/mjwarp"]
     if args.checkpoint_file:
-        generated += ["algo.resume=true", f"algo.resume_path={args.checkpoint_file}"]
+        # UniLab's RSL entrypoint resolves a file directly through load_run.
+        # Do not set the unused resume_path field and falsely claim restoration.
+        generated += [f"algo.load_run={args.checkpoint_file}"]
     if mode == "play":
         generated += ["training.play_only=true"]
     sys.argv = ["wuji-" + mode, "--config-dir", str(CONF_ROOT), *generated, *overrides]

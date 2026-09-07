@@ -46,9 +46,13 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"}]
-unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "d7208ab19c6dc141073a383af3a960c3c566d8a4"}
-unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "f69e7b2025a301e6e0ce57021d6baaa232741e1e"}
-unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "64ca1942aae95b18831fbd60e914eed7556ea21f"}
+# Reviewed non-main owner branches. Pin commits rather than published 1.1.0
+# metadata: the release still resolves unilab-rl==1.0.0 and lacks Wuji's
+# declared capability and training-state contracts. These commits remain
+# upstream dependencies and are merged to main only through their own reviews.
+unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "0d13371c63f1bdff3fcd210655b9803023673dc1"}
+unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "175c2270e5e236c2f00c01f068222d1fb004481d"}
+unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "9bdf5e882c77b67496a2af3bbfd314edde532ceb"}
 
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
