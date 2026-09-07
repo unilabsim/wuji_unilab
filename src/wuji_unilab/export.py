@@ -20,6 +20,8 @@ from unilab.training.onnx_export import export_policy_onnx, verify_policy_onnx
 from wuji_unilab.config import compose_task, env_overrides
 from wuji_unilab.rl.runtime import WujiWrapper
 
+EXPORT_BATCH_SIZE = 1
+
 
 def _parser():
     parser = argparse.ArgumentParser(prog="wuji-export")
@@ -56,8 +58,8 @@ def build_policy_schema(
         "task": task,
         "physics_backend": "mjwarp",
         "control_dt_s": control_dt_s,
-        "observation": {"name": "obs", "shape": [1, observation_dim]},
-        "action": {"name": "actions", "shape": [1, action_dim]},
+        "observation": {"name": "obs", "shape": [EXPORT_BATCH_SIZE, observation_dim]},
+        "action": {"name": "actions", "shape": [EXPORT_BATCH_SIZE, action_dim]},
         "joint_names": joint_names,
         "checkpoint": str(checkpoint_file.resolve()),
         "onnx_max_abs_diff": max_abs_diff,
@@ -93,7 +95,7 @@ def main() -> None:
         module = actor.as_onnx(verbose=False).eval()
         output = args.output or args.checkpoint_file.with_suffix(".onnx")
         output.parent.mkdir(parents=True, exist_ok=True)
-        obs = torch.randn(3, int(env.obs_groups_spec["obs"]), device="cuda:0")
+        obs = torch.randn(EXPORT_BATCH_SIZE, int(env.obs_groups_spec["obs"]), device="cuda:0")
         export_policy_onnx(
             module, str(output), (obs,), input_names=["obs"], output_names=["actions"]
         )

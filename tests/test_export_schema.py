@@ -1,8 +1,14 @@
 import json
 
+import numpy as np
+import onnx
+import onnxruntime as ort
 import pytest
+import torch
+from torch import nn
+from unilab.training.onnx_export import export_policy_onnx
 
-from wuji_unilab.export import _parser, build_policy_schema
+from wuji_unilab.export import EXPORT_BATCH_SIZE, _parser, build_policy_schema
 
 
 def test_export_requires_checkpoint_and_fixed_output_contract(tmp_path, monkeypatch):
@@ -39,8 +45,8 @@ def test_schema_preserves_deployment_contract(tmp_path):
         "task": "WujiHand_Reorient",
         "physics_backend": "mjwarp",
         "control_dt_s": 0.05,
-        "observation": {"name": "obs", "shape": [1, 207]},
-        "action": {"name": "actions", "shape": [1, 20]},
+        "observation": {"name": "obs", "shape": [EXPORT_BATCH_SIZE, 207]},
+        "action": {"name": "actions", "shape": [EXPORT_BATCH_SIZE, 20]},
         "joint_names": ["robot/joint1", "robot/joint2"],
         "checkpoint": str(checkpoint.resolve()),
         "onnx_max_abs_diff": 1e-6,
@@ -66,3 +72,23 @@ def test_schema_rejects_incomplete_policy_contract(
             max_abs_diff=0.0,
             mean_abs_diff=0.0,
         )
+
+
+def test_exported_onnx_uses_declared_single_item_batch_contract(tmp_path):
+    artifact = tmp_path / "actor.onnx"
+    actor = nn.Linear(207, 20).eval()
+    obs = torch.randn(EXPORT_BATCH_SIZE, 207)
+    export_policy_onnx(actor, str(artifact), (obs,), input_names=["obs"], output_names=["actions"])
+
+    graph = onnx.load(artifact).graph
+    assert [dim.dim_value for dim in graph.input[0].type.tensor_type.shape.dim] == [
+        EXPORT_BATCH_SIZE,
+        207,
+    ]
+    assert [dim.dim_value for dim in graph.output[0].type.tensor_type.shape.dim] == [
+        EXPORT_BATCH_SIZE,
+        20,
+    ]
+    session = ort.InferenceSession(str(artifact), providers=["CPUExecutionProvider"])
+    action = session.run(["actions"], {"obs": np.zeros((EXPORT_BATCH_SIZE, 207), np.float32)})[0]
+    assert action.shape == (EXPORT_BATCH_SIZE, 20)
