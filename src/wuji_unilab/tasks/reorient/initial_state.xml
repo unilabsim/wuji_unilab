@@ -1,0 +1,13 @@
+<mujoco>
+  <!-- Source: wuji-mjlab 9410a3a, reorient_constants.py; Apache-2.0.
+       Task pose belongs here, not in the reusable robot asset. Cube freejoint
+       precedes the twenty hand hinge joints in the composed model. -->
+  <custom>
+    <numeric name="hand_pose" data="0 0 0.5 0.70710678 0 -0.70710678 0"/>
+  </custom>
+  <keyframe>
+    <key name="home"
+      qpos="-0.0967 0.0100 0.5599 1 0 0 0 0.8 -0.0215 0.285 0.582 0.441 0.163 0.822 0.494 0.448 -0.0832 0.883 0.305 0.594 -0.268 1.13 0.18 1.2 -0.228 0.794 0.407"
+      ctrl="0.8 -0.0215 0.285 0.582 0.441 0.163 0.822 0.494 0.448 -0.0832 0.883 0.305 0.594 -0.268 1.13 0.18 1.2 -0.228 0.794 0.407"/>
+  </keyframe>
+</mujoco>
