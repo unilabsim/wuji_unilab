@@ -1626,7 +1626,7 @@ wheels = [
 [[package]]
 name = "unilab"
 version = "1.1.0"
-source = { git = "https://github.com/Motphys/UniLab.git?rev=0d13371c63f1bdff3fcd210655b9803023673dc1#0d13371c63f1bdff3fcd210655b9803023673dc1" }
+source = { git = "https://github.com/Motphys/UniLab.git?rev=55a5e14952208d3db881421d843a1a13e05690c4#55a5e14952208d3db881421d843a1a13e05690c4" }
 dependencies = [
     { name = "etils" },
     { name = "gymnasium" },
@@ -1802,7 +1802,7 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.0.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==2.8.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=0d13371c63f1bdff3fcd210655b9803023673dc1" },
+    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=55a5e14952208d3db881421d843a1a13e05690c4" },
     { name = "unilab-rl", git = "https://github.com/unilabsim/unilab_rl.git?rev=9bdf5e882c77b67496a2af3bbfd314edde532ceb" },
     { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=175c2270e5e236c2f00c01f068222d1fb004481d" },
     { name = "warp-lang", specifier = "==1.16.0" },
