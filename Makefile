@@ -1,10 +1,16 @@
-.PHONY: check test test-all
+.PHONY: check test test-all build
 
-# Bootstrap documentation gate. Runtime/package gates replace these with P1.
 check:
 	git diff --check
-	uv run --no-project python -m json.tool docs/baseline.json > /dev/null
+	uv run --no-sync ruff check src tests
+	uv run --no-sync ruff format --check src tests
+	uv run --no-sync pyright
 
-test: check
+test:
+	uv run --no-sync pytest -q
 
-test-all: check
+test-all:
+	uv run --no-sync pytest -q -m ''
+
+build:
+	uv build
