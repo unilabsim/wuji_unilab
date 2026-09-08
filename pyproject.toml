@@ -52,7 +52,7 @@ torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platfor
 # declared capability and training-state contracts. These commits remain
 # upstream dependencies and are merged to main only through their own reviews.
 unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "55a5e14952208d3db881421d843a1a13e05690c4"}
-unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "8e7828c256efe50e5f581cb0c6dbedefd353f50c"}
+unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9"}
 unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "9bdf5e882c77b67496a2af3bbfd314edde532ceb"}
 
 [tool.uv]
