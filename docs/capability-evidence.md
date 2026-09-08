@@ -55,20 +55,37 @@ The downstream GPU smoke in PR #9 subsequently ran 32 environments, 3 PPO
 iterations and 8 rollout steps with the 207-dimensional policy, 413-dimensional
 critic and 20 actions. It emitted finite logged action standard deviation and
 checkpoints. Resuming `model_2.pt` completed the following iteration through
-the explicit training-state provider. The reward is still dominated by early
-cage drops; no success-rate or policy-quality claim is made.
+the explicit training-state provider.
+
+P5 exposed and repaired a mjwarp position-actuator DR defect: the public
+positive `kp`/`kd` values must write `gainprm[..., 0] = kp`,
+`biasprm[..., 1] = -kp`, and `biasprm[..., 2] = -kd`. The old path omitted the
+second write and wrote positive `kd`, producing control feedback that ejected
+the cube. UniSim PR #44 merged this repair into its non-main Wuji integration
+branch at `c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9`; the downstream lock pins
+that exact commit and GPU coverage asserts the full-DR task does not terminate
+in its first 12 zero-action steps.
+
+Three independent 128-world, 40-iteration, 16-rollout-step runs (81,920
+environment steps each, seeds 42/43/44) completed in 15.30/14.64/14.90 seconds
+at 5,639/5,878/5,771 environment steps per second. Their final mean rewards
+were -530.13/-534.82/-587.64 and mean episode lengths were
+290.83/312.40/342.44. Seed 42 recorded one episode-success value of 0.111;
+seeds 43 and 44 recorded zero. This establishes repaired physics stability and
+bounded end-to-end training, not reproducible reorientation quality, a
+multi-seed acceptance threshold, source-scale throughput, multi-GPU behavior,
+or hardware control.
 
 ## Confirmed Gaps And Decisions
 
 | Capability | Status | Effect |
 | --- | --- | --- |
 | C08 post-substep sensor history | gap | Not used by the current Wuji reward; remains a general audit gap. |
-| C09 DR field mutation | implemented in UniSim PR #42 | Required geometry/contact/DOF writes and primitive bound recomputation; task pins the reviewed commit pending PR review. |
+| C09 DR field mutation | implemented in UniSim PR #42 and #44 | Required geometry/contact/DOF writes and primitive bound recomputation; #44 fixes position-actuator gain signs in the reviewed non-main integration dependency. |
 | C10 fixed hand pose | implemented in UniSim #42 / UniLab #1540 | Selected-world mocap binding; no free-joint substitution. |
 | C14 curriculum resume | implemented in unilab-rl #17 / UniLab #1540 | Explicit versioned owner state; no silent restart. |
 | C15 RND wrapper | confirmed gap | Not a Wuji prerequisite; #17 provides the extension needed for a future owner adapter. |
 | C19 camera/terrain and C17 IK | audit-only gap | Not silently enabled or replaced; Wuji uses a flat, vector-observation task. |
 
-All results are tied to non-main reviewed feature SHAs listed in PR #9. They
-must be rerun after any dependency update or before claiming a new support
-level.
+All results are tied to reviewed non-main dependency SHAs. They must be rerun
+after any dependency update or before claiming a new support level.
