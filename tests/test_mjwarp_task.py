@@ -30,6 +30,14 @@ def env():
 
 def test_full_randomization_step_and_partial_reset_isolation(env):
     state = task(env)
+    assert set(state.metrics) == {
+        "goal_reach_count",
+        "ori_error",
+        "hold_counter",
+        "goal_timer",
+        "in_success_window",
+        "window_timer",
+    }
     assert env.obs_groups_spec == {"obs": 207, "critic": 413}
     assert np.any(np.abs(state.dr_ratios - 1) > 0.01)
     for _ in range(12):
@@ -39,6 +47,7 @@ def test_full_randomization_step_and_partial_reset_isolation(env):
         # Fixed DR writes must retain MuJoCo position-actuator semantics. A
         # positive-damping sign regression previously ejected every cube here.
         assert not result.terminated.any()
+    assert (state.goal_timer > 0).all()
     before_joint = state.robot.data.joint_pos.copy()
     before_pose = state.robot.read_mocap_pose().copy()
     ratios = state.dr_ratios.copy()

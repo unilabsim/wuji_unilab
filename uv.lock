@@ -1626,7 +1626,7 @@ wheels = [
 [[package]]
 name = "unilab"
 version = "1.1.0"
-source = { git = "https://github.com/Motphys/UniLab.git?rev=55a5e14952208d3db881421d843a1a13e05690c4#55a5e14952208d3db881421d843a1a13e05690c4" }
+source = { git = "https://github.com/Motphys/UniLab.git?rev=9e3bb6b814d694d52bfff0f074d0a2b8ede6f032#9e3bb6b814d694d52bfff0f074d0a2b8ede6f032" }
 dependencies = [
     { name = "etils" },
     { name = "gymnasium" },
@@ -1664,8 +1664,8 @@ mjwarp = [
 
 [[package]]
 name = "unilab-rl"
-version = "1.1.0"
-source = { git = "https://github.com/unilabsim/unilab_rl.git?rev=9bdf5e882c77b67496a2af3bbfd314edde532ceb#9bdf5e882c77b67496a2af3bbfd314edde532ceb" }
+version = "1.1.1"
+source = { git = "https://github.com/unilabsim/unilab_rl.git?rev=793de3ade6b992a5d1a4da8681a128313b8188a1#793de3ade6b992a5d1a4da8681a128313b8188a1" }
 dependencies = [
     { name = "hydra-core" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1682,8 +1682,8 @@ dependencies = [
 
 [[package]]
 name = "unisim-core"
-version = "1.1.3"
-source = { git = "https://github.com/unilabsim/unisim.git?rev=c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9#c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9" }
+version = "1.1.4"
+source = { git = "https://github.com/unilabsim/unisim.git?rev=ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445#ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1802,9 +1802,9 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.0.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==2.8.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=55a5e14952208d3db881421d843a1a13e05690c4" },
-    { name = "unilab-rl", git = "https://github.com/unilabsim/unilab_rl.git?rev=9bdf5e882c77b67496a2af3bbfd314edde532ceb" },
-    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9" },
+    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=9e3bb6b814d694d52bfff0f074d0a2b8ede6f032" },
+    { name = "unilab-rl", git = "https://github.com/unilabsim/unilab_rl.git?rev=793de3ade6b992a5d1a4da8681a128313b8188a1" },
+    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445" },
     { name = "warp-lang", specifier = "==1.16.0" },
     { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.5.1" },
 ]

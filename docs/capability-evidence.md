@@ -62,7 +62,7 @@ positive `kp`/`kd` values must write `gainprm[..., 0] = kp`,
 `biasprm[..., 1] = -kp`, and `biasprm[..., 2] = -kd`. The old path omitted the
 second write and wrote positive `kd`, producing control feedback that ejected
 the cube. UniSim PR #44 merged this repair into its non-main Wuji integration
-branch at `c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9`; the downstream lock pins
+branch at `c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9`; the bounded run pinned
 that exact commit and GPU coverage asserts the full-DR task does not terminate
 in its first 12 zero-action steps.
 
@@ -87,5 +87,7 @@ or hardware control.
 | C15 RND wrapper | confirmed gap | Not a Wuji prerequisite; #17 provides the extension needed for a future owner adapter. |
 | C19 camera/terrain and C17 IK | audit-only gap | Not silently enabled or replaced; Wuji uses a flat, vector-observation task. |
 
-All results are tied to reviewed non-main dependency SHAs. They must be rerun
-after any dependency update or before claiming a new support level.
+Those results are tied to the recorded dependency SHAs. The current lock now
+uses the reviewed upstream-main release commits containing the same owner work;
+focused GPU coverage is rerun after that dependency update. Learning results
+must still be rerun before claiming a new support level.

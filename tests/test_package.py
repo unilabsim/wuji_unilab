@@ -35,7 +35,33 @@ def test_owners_resolve_required_features_and_picklable_factory(task, envs):
     assert cfg.algo.num_envs == envs
     assert cfg.training.sim_backend == "mjwarp"
     assert set(overrides["events"]) == {"reset", "randomize", "disturbance"}
-    assert len(overrides["rewards"]) == 9
+    assert set(overrides["commands"]) == {"reorient_command"}
+    assert set(overrides["terminations"]) == {"time_out", "cage_drop"}
+    assert set(overrides["curriculum"]) == {"success_curriculum", "adaptive_episode"}
+    assert set(overrides["rewards"]) == {
+        "orientation_alignment",
+        "hand_pose",
+        "action_rate",
+        "torque",
+        "tip_slide",
+        "cage_escape",
+        "finger_collision",
+        "hold_escalation",
+        "palm_detach",
+    }
+    assert {
+        "action_delta_rms",
+        "action_jerk_rms",
+        "cage_escape_frequency",
+        "fingertip_contact_count",
+        "torque_saturation_ratio",
+        "joint_vel_rms",
+        "cube_height_above_palm",
+        "finger_collision_frequency",
+        "cube_survival_steps",
+        "success_interval",
+        "goal_reach_count",
+    } <= set(overrides["metrics"])
     assert Path(overrides["scene"]["model_file"]).is_file()
     factory = pickle.loads(pickle.dumps(registry_env_factory(task, "mjwarp")))
     assert factory.keywords == registry_env_factory(task, "mjwarp").keywords

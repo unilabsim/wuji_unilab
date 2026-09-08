@@ -243,7 +243,7 @@ env:
       warmup_time_s: 0.4
       soft_limit_factor: 0.9
   commands:
-    reorient:
+    reorient_command:
       _target_: wuji_unilab.tasks.reorient.commands.ReorientCommandCfg
       resampling_time_range:
       - 1000000
@@ -336,7 +336,7 @@ env:
         min_episode_s: 3
         total_steps: 200000
   terminations:
-    timeout:
+    time_out:
       func: unilab.envs.mdp.time_out
       time_out: true
     cage_drop:
@@ -345,45 +345,49 @@ env:
         margin: 0.01
         max_outside_steps: 10
   curriculum:
-    difficulty:
-      func: wuji_unilab.tasks.reorient.rewards.curriculum
+    success_curriculum:
+      func: wuji_unilab.tasks.reorient.rewards.success_curriculum
       params:
         count_threshold: 3
-        delta: 0.08
+        delta_per_loop: 0.08
+    adaptive_episode:
+      func: wuji_unilab.tasks.reorient.rewards.adaptive_episode_curriculum
+      params:
         target_steps: 800
         inc_rate: 0.1
         dec_rate: 0.2
         min_scale: 0.05
+        drop_gamma: 1.0
   metrics:
-    success:
+    goal_reach_count:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: success
-      reduce: last
+        kind: goal_reach_count
+      reduce: mean
     orientation_error:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
         kind: orientation_error
       reduce: mean
-    survival:
+    cube_survival_steps:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: survival
+        kind: cube_survival_steps
       reduce: mean
-    tips_contact:
+    fingertip_contact_count:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: tips_contact
+        kind: fingertip_contact_count
       reduce: mean
-    cage:
+    cage_escape_frequency:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: cage
+        kind: cage_escape_frequency
       reduce: mean
-    joint_velocity_rms:
+    joint_vel_rms:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: joint_velocity_rms
+        kind: joint_vel_rms
       reduce: mean
     torque_rms:
       func: wuji_unilab.tasks.reorient.rewards.metric
@@ -395,10 +399,30 @@ env:
       params:
         kind: action_delta_rms
       reduce: mean
-    cube_height:
+    action_jerk_rms:
       func: wuji_unilab.tasks.reorient.rewards.metric
       params:
-        kind: cube_height
+        kind: action_jerk_rms
+      reduce: mean
+    success_interval:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: success_interval
+      reduce: mean
+    torque_saturation_ratio:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: torque_saturation_ratio
+      reduce: mean
+    finger_collision_frequency:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: finger_collision_frequency
+      reduce: mean
+    cube_height_above_palm:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: cube_height_above_palm
       reduce: mean
 algo:
   algo: ppo
@@ -466,11 +490,11 @@ training:
   play_steps: 200
   log_root: logs
 reward:
-  orientation:
+  orientation_alignment:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: 15
     params:
-      kind: orientation
+      kind: orientation_alignment
   hand_pose:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: -0.2
@@ -491,21 +515,21 @@ reward:
     weight: -0.3
     params:
       kind: tip_slide
-  cage:
+  cage_escape:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: -500
     params:
-      kind: cage
-  collision:
+      kind: cage_escape
+  finger_collision:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: -1
     params:
-      kind: collision
-  hold:
+      kind: finger_collision
+  hold_escalation:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: 11.4
     params:
-      kind: hold
+      kind: hold_escalation
   palm_detach:
     func: wuji_unilab.tasks.reorient.rewards.reward
     weight: 0.5
