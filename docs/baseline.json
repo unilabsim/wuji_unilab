@@ -1,0 +1,158 @@
+{
+  "date": "2026-09-07",
+  "roadmap": "https://github.com/unilabsim/wuji_unilab/issues/1",
+  "source": {
+    "repository": "wuji-technology/wuji-mjlab",
+    "commit": "9410a3ac9caf57ac0b8c74c0a5a63f2b466c3003"
+  },
+  "upstream": {
+    "unilab": "d7208ab19c6dc141073a383af3a960c3c566d8a4",
+    "unisim": "f69e7b2025a301e6e0ce57021d6baaa232741e1e",
+    "unilab_rl": "64ca1942aae95b18831fbd60e914eed7556ea21f",
+    "mjlab": "8ee51fbcf806a7419189f706d9e394cbeb7790fa"
+  },
+  "target_versions": {
+    "unilab": "1.1.0",
+    "unisim-core": "1.1.3",
+    "unilab-rl": "1.1.0",
+    "torch": "2.8.0+cu128",
+    "mujoco": "3.11.0",
+    "mujoco-warp": "3.11.0",
+    "warp-lang": "1.16.0",
+    "rsl-rl-lib": "5.0.1"
+  },
+  "capabilities": [
+    {
+      "id": "C01",
+      "name": "task/config discovery",
+      "baseline_status": "implemented",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C02",
+      "name": "vector env, actor/critic, timeout",
+      "baseline_status": "implemented",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C03",
+      "name": "observation noise/history/delay",
+      "baseline_status": "implemented",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C04",
+      "name": "MDP managers and curriculum",
+      "baseline_status": "implemented",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C05",
+      "name": "action/soft limits/control",
+      "baseline_status": "composable",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C06",
+      "name": "contact/force/site sensors",
+      "baseline_status": "composable",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C07",
+      "name": "supported fixed DR and critic parameters",
+      "baseline_status": "composable",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C08",
+      "name": "post-substep sensor/metric history",
+      "baseline_status": "gap",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C09",
+      "name": "geometry/contact/dof DR fields",
+      "baseline_status": "gap",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C10",
+      "name": "mocap reset/object perturbation",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C11",
+      "name": "PPO/MLP/RNN/CNN",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C12",
+      "name": "Wuji Softplus distribution",
+      "baseline_status": "composable",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C13",
+      "name": "DDP/logging",
+      "baseline_status": "implemented",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C14",
+      "name": "checkpoint/curriculum restore",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C15",
+      "name": "runner/RND/symmetry",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C16",
+      "name": "image/multimodal observations",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C17",
+      "name": "actuation/IK",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C18",
+      "name": "export/eval/deployment",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C19",
+      "name": "terrain/spatial/camera sensors",
+      "baseline_status": "gap",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C20",
+      "name": "variants and general DR",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C21",
+      "name": "force/torque/perturbation",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    },
+    {
+      "id": "C22",
+      "name": "distillation",
+      "baseline_status": "partial",
+      "evidence": "static audit in roadmap #1; not a runtime pass"
+    }
+  ]
+}

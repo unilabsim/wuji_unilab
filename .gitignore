@@ -12,3 +12,5 @@ outputs/
 artifacts/
 .coverage
 htmlcov/
+MUJOCO_LOG.TXT
+train_rsl_rl.log

@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - /task/wuji_reorient/mjwarp
+  - _self_
+
+training:
+  task_name: WujiHand_Reorient_Light
+algo:
+  num_envs: 4096
+  max_iterations: 7500
+  run_name: Light
+env:
+  events:
+    randomize:
+      params:
+        total_steps: 300000
+    disturbance:
+      params:
+        total_steps: 300000

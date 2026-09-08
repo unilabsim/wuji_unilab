@@ -1,0 +1,531 @@
+# @package _global_
+env:
+  scene:
+    model_file: ${wuji_scene:}
+    default_keyframe_name: home
+    entities:
+      robot:
+        joint_names:
+        - robot/right_finger1_joint1
+        - robot/right_finger1_joint2
+        - robot/right_finger1_joint3
+        - robot/right_finger1_joint4
+        - robot/right_finger2_joint1
+        - robot/right_finger2_joint2
+        - robot/right_finger2_joint3
+        - robot/right_finger2_joint4
+        - robot/right_finger3_joint1
+        - robot/right_finger3_joint2
+        - robot/right_finger3_joint3
+        - robot/right_finger3_joint4
+        - robot/right_finger4_joint1
+        - robot/right_finger4_joint2
+        - robot/right_finger4_joint3
+        - robot/right_finger4_joint4
+        - robot/right_finger5_joint1
+        - robot/right_finger5_joint2
+        - robot/right_finger5_joint3
+        - robot/right_finger5_joint4
+        actuator_names:
+        - robot/right_finger1_joint1_actuator
+        - robot/right_finger1_joint2_actuator
+        - robot/right_finger1_joint3_actuator
+        - robot/right_finger1_joint4_actuator
+        - robot/right_finger2_joint1_actuator
+        - robot/right_finger2_joint2_actuator
+        - robot/right_finger2_joint3_actuator
+        - robot/right_finger2_joint4_actuator
+        - robot/right_finger3_joint1_actuator
+        - robot/right_finger3_joint2_actuator
+        - robot/right_finger3_joint3_actuator
+        - robot/right_finger3_joint4_actuator
+        - robot/right_finger4_joint1_actuator
+        - robot/right_finger4_joint2_actuator
+        - robot/right_finger4_joint3_actuator
+        - robot/right_finger4_joint4_actuator
+        - robot/right_finger5_joint1_actuator
+        - robot/right_finger5_joint2_actuator
+        - robot/right_finger5_joint3_actuator
+        - robot/right_finger5_joint4_actuator
+        body_names:
+        - robot/right_palm_link
+        - robot/right_finger1_link1
+        - robot/right_finger1_link2
+        - robot/right_finger1_link3
+        - robot/right_finger1_link4
+        - robot/right_finger2_link1
+        - robot/right_finger2_link2
+        - robot/right_finger2_link3
+        - robot/right_finger2_link4
+        - robot/right_finger3_link1
+        - robot/right_finger3_link2
+        - robot/right_finger3_link3
+        - robot/right_finger3_link4
+        - robot/right_finger4_link1
+        - robot/right_finger4_link2
+        - robot/right_finger4_link3
+        - robot/right_finger4_link4
+        - robot/right_finger5_link1
+        - robot/right_finger5_link2
+        - robot/right_finger5_link3
+        - robot/right_finger5_link4
+        geom_names:
+        - robot/right_palm_collision
+        - robot/right_finger1_link2_col
+        - robot/right_finger1_link4_col
+        - robot/right_finger2_link2_col
+        - robot/right_finger2_link4_col
+        - robot/right_finger3_link2_col
+        - robot/right_finger3_link4_col
+        - robot/right_finger4_link2_col
+        - robot/right_finger4_link4_col
+        - robot/right_finger5_link2_col
+        - robot/right_finger5_link4_col
+        - robot/right_finger1_link2_softbody_col
+        - robot/right_finger1_link3_col
+        - robot/right_finger2_link3_col
+        - robot/right_finger3_link3_col
+        - robot/right_finger4_link3_col
+        - robot/right_finger5_link3_col
+        site_names:
+        - robot/right_finger1_tip
+        - robot/right_finger2_tip
+        - robot/right_finger3_tip
+        - robot/right_finger4_tip
+        - robot/right_finger5_tip
+      object:
+        root_body_name: object/cube
+        body_names:
+        - object/cube
+        geom_names:
+        - object/cube
+  sim_dt: 0.01
+  ctrl_dt: 0.05
+  max_episode_seconds: 50
+  seed: ${algo.seed}
+  mjwarp_nconmax: 180
+  mjwarp_njmax: 1500
+  policy_observation_group: policy
+  critic_observation_group: critic
+  scale_rewards_by_dt: true
+  observations:
+    policy:
+      enable_corruption: true
+      terms:
+        joint:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: joint
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.06
+            n_max: 0.06
+        target_error:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: target_error
+          history_length: 3
+        position:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: position
+            injection_prob: 0.02
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.008
+            n_max: 0.008
+        orientation:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: orientation
+            injection_prob: 0.02
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.GaussianNoiseCfg
+            std: 0.05
+        action:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: action
+          history_length: 3
+    critic:
+      enable_corruption: false
+      terms:
+        joint:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: joint
+          history_length: 3
+        target_error:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: target_error
+          history_length: 3
+        position:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: position
+          history_length: 3
+        orientation:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: orientation
+          history_length: 3
+        action:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: action
+          history_length: 3
+        qpos:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: qpos
+          history_length: 3
+        qvel:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: qvel
+          history_length: 3
+        tips:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: tips
+          history_length: 3
+          scale: 5
+        clean_position:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: position
+        clean_orientation:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: orientation
+        clean_linvel:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: linvel
+        clean_angvel:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: angvel
+        clean_force_direction:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: force_direction
+        clean_perturbation:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: perturbation
+        clean_progress:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: progress
+        clean_cage:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: cage
+        clean_dr:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: dr
+        clean_palm:
+          func: wuji_unilab.tasks.reorient.observations.feature
+          params:
+            kind: palm
+  actions:
+    joint_pos:
+      _target_: wuji_unilab.tasks.reorient.actions.WujiActionCfg
+      entity_name: robot
+      action_scale: 0.5
+      ema_alpha: 0.5
+      warmup_time_s: 0.4
+      soft_limit_factor: 0.9
+  commands:
+    reorient:
+      _target_: wuji_unilab.tasks.reorient.commands.ReorientCommandCfg
+      resampling_time_range:
+      - 1000000
+      - 1000000
+      success_threshold: 0.2
+      success_hold_steps: 5
+      goal_switch_delay: 20
+  events:
+    reset:
+      func: wuji_unilab.tasks.reorient.events.ResetWuji
+      mode: reset
+      params:
+        soft_limit_factor: 0.9
+        joint_noise:
+        - -0.3
+        - -0.1
+        cube_noise: 0.01
+        wrist_pitch:
+        - -0.4
+        - 0.1
+    randomize:
+      func: wuji_unilab.tasks.reorient.events.FixedRandomization
+      mode: reset
+      params:
+        total_steps: 200000
+        ranges:
+          friction:
+          - 0.7
+          - 1.3
+          hand_size:
+          - 0.97
+          - 1.03
+          solref:
+            '0':
+            - 1
+            - 2
+            '1':
+            - 0.8
+            - 1.2
+          solimp:
+            '0':
+            - 0.5
+            - 1
+            '2':
+            - 1
+            - 5
+          cube_size:
+          - 0.85
+          - 1.15
+          cube_mass:
+          - 0.4
+          - 1.6
+          cube_com:
+          - -0.003
+          - 0.003
+          hand_mass:
+          - 0.4
+          - 1.5
+          hand_inertia:
+          - 0.4
+          - 1.5
+          damping:
+          - 0.3
+          - 3
+          armature:
+          - 0.75
+          - 1.3
+          frictionloss:
+          - 0.5
+          - 2
+          kp:
+          - 0.75
+          - 1.5
+          kd:
+          - 0.5
+          - 2
+          encoder:
+          - -0.01
+          - 0.01
+    disturbance:
+      func: wuji_unilab.tasks.reorient.events.VelocityDisturbance
+      mode: interval
+      interval_range_s:
+      - 0.6
+      - 1.8
+      params:
+        speed_range:
+        - 0.05
+        - 0.15
+        min_episode_s: 3
+        total_steps: 200000
+  terminations:
+    timeout:
+      func: unilab.envs.mdp.time_out
+      time_out: true
+    cage_drop:
+      func: wuji_unilab.tasks.reorient.rewards.CageDrop
+      params:
+        margin: 0.01
+        max_outside_steps: 10
+  curriculum:
+    difficulty:
+      func: wuji_unilab.tasks.reorient.rewards.curriculum
+      params:
+        count_threshold: 3
+        delta: 0.08
+        target_steps: 800
+        inc_rate: 0.1
+        dec_rate: 0.2
+        min_scale: 0.05
+  metrics:
+    success:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: success
+      reduce: last
+    orientation_error:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: orientation_error
+      reduce: mean
+    survival:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: survival
+      reduce: mean
+    tips_contact:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: tips_contact
+      reduce: mean
+    cage:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: cage
+      reduce: mean
+    joint_velocity_rms:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: joint_velocity_rms
+      reduce: mean
+    torque_rms:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: torque_rms
+      reduce: mean
+    action_delta_rms:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: action_delta_rms
+      reduce: mean
+    cube_height:
+      func: wuji_unilab.tasks.reorient.rewards.metric
+      params:
+        kind: cube_height
+      reduce: mean
+algo:
+  algo: ppo
+  algo_log_name: wuji_ppo
+  num_envs: 8192
+  max_iterations: 5000
+  num_steps_per_env: 40
+  save_interval: 50
+  seed: 42
+  experiment_name: wuji_reorient
+  runtime_resolver: wuji_unilab.rl.runtime:resolve_runtime
+  obs_groups:
+    actor:
+    - policy
+    critic:
+    - critic
+  actor:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims:
+    - 512
+    - 256
+    - 128
+    activation: elu
+    obs_normalization: true
+    distribution_cfg:
+      class_name: wuji_unilab.rl.distributions:SoftplusGaussianDistribution
+      init_std: 0.5
+      min_std: 0.2
+  critic:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims:
+    - 512
+    - 512
+    - 256
+    - 128
+    activation: elu
+    obs_normalization: true
+  algorithm:
+    class_name: uni_rl.algos.rsl_rl_ppo:FinalObservationAwarePPO
+    value_loss_coef: 0.5
+    use_clipped_value_loss: false
+    clip_param: 0.2
+    entropy_coef: 0.001
+    num_learning_epochs: 4
+    num_mini_batches: 32
+    learning_rate: 0.0001
+    schedule: fixed
+    gamma: 0.99
+    lam: 0.95
+    max_grad_norm: 1
+    disable_finite_checks: false
+training:
+  task_name: WujiHand_Reorient
+  sim_backend: mjwarp
+  device: cuda:0
+  logger: tensorboard
+  no_play: true
+  play_render_mode: record
+  play_env_num: 4
+  cam_distance: 0.6
+  cam_lookat:
+  - 0
+  - 0
+  - 0.5
+  play_steps: 200
+  log_root: logs
+reward:
+  orientation:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: 15
+    params:
+      kind: orientation
+  hand_pose:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -0.2
+    params:
+      kind: hand_pose
+  action_rate:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -1
+    params:
+      kind: action_rate
+  torque:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -24
+    params:
+      kind: torque
+  tip_slide:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -0.3
+    params:
+      kind: tip_slide
+  cage:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -500
+    params:
+      kind: cage
+  collision:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: -1
+    params:
+      kind: collision
+  hold:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: 11.4
+    params:
+      kind: hold
+  palm_detach:
+    func: wuji_unilab.tasks.reorient.rewards.reward
+    weight: 0.5
+    params:
+      kind: palm_detach
+play_profile:
+  enabled: true
+  env:
+    max_episode_seconds: 60
+    events:
+      randomize: null
+      disturbance: null
+    curriculum: {}
+    observations:
+      policy:
+        enable_corruption: false
+        terms:
+          position:
+            params:
+              injection_prob: 0.0
+          orientation:
+            params:
+              injection_prob: 0.0
