@@ -36,6 +36,9 @@ def test_full_randomization_step_and_partial_reset_isolation(env):
         result = env.step(np.zeros((4, 20), np.float32))
         assert all(np.isfinite(value).all() for value in result.obs.values())
         assert np.isfinite(result.reward).all()
+        # Fixed DR writes must retain MuJoCo position-actuator semantics. A
+        # positive-damping sign regression previously ejected every cube here.
+        assert not result.terminated.any()
     before_joint = state.robot.data.joint_pos.copy()
     before_pose = state.robot.read_mocap_pose().copy()
     ratios = state.dr_ratios.copy()
