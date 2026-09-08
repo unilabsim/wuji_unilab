@@ -62,6 +62,10 @@ actor、critic、optimizer、iteration、logger 和显式课程状态。检查�
 误差均值，也不是每个目标的最小误差。日志中的 termination 数值同样不直接
 构成按统一试验分母计算的掉落率。
 
+这是提交 `2ea17bb` 的历史记录。后续指标对齐修改不改写该产物；新训练将这个标量改名为
+`Episode_Metrics/goal_reach_count`，并采用与源仓库相同的 mean reduction，避免继续把目标计数
+误称为 success。独立 trial 成功率仍需要专用评估协议计算。
+
 训练初始 mean reward 为 -245.4667，episode orientation error 为 2.2151 rad，
 最后值改善明显，证明该运行发生了学习。最终 `difficulty=0.0` 而 `adaptive=1.0`，
 不能据此声称完成全部课程难度或完整 SO(3) 质量验收。需要独立目标分布评估和

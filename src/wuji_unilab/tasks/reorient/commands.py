@@ -36,9 +36,17 @@ class ReorientCommand(CommandTerm):
         self.views = {
             k: env.scene.bind_sensor_data(v) for k, v in materialize_scene().sensors.items()
         }
+        # Force ranges are immutable MJCF metadata; load them once at init.
+        import mujoco
+
+        model = mujoco.MjModel.from_xml_path(str(materialize_scene().path))
+        self.actuator_force_limits = np.maximum(model.actuator_forcerange[:, 1], 1e-8).astype(
+            np.float32
+        )
         self.goal = np.tile([1, 0, 0, 0], (env.num_envs, 1)).astype(np.float32)
         self.goal_count = np.zeros(env.num_envs, dtype=np.int32)
         self.hold = np.zeros(env.num_envs, dtype=np.int32)
+        self.goal_timer = np.zeros(env.num_envs, dtype=np.int32)
         self.window = np.zeros(env.num_envs, dtype=np.int32)
         self.success = np.zeros(env.num_envs, dtype=bool)
         self.cage_counter = np.zeros(env.num_envs, dtype=np.float32)
@@ -50,7 +58,11 @@ class ReorientCommand(CommandTerm):
         self.adaptive = 0.05
         self.metrics = {
             "goal_reach_count": np.zeros(env.num_envs, dtype=np.float32),
-            "orientation_error": np.zeros(env.num_envs, dtype=np.float32),
+            "ori_error": np.zeros(env.num_envs, dtype=np.float32),
+            "hold_counter": np.zeros(env.num_envs, dtype=np.float32),
+            "goal_timer": np.zeros(env.num_envs, dtype=np.float32),
+            "in_success_window": np.zeros(env.num_envs, dtype=np.float32),
+            "window_timer": np.zeros(env.num_envs, dtype=np.float32),
         }
 
     @property
@@ -83,18 +95,24 @@ class ReorientCommand(CommandTerm):
     def _resample_command(self, env_ids):
         self.goal[env_ids] = random_quaternions(self._env.rng, len(env_ids))
         self.hold[env_ids] = 0
+        self.goal_timer[env_ids] = 0
         self.window[env_ids] = 0
         self.success[env_ids] = False
 
     def _update_metrics(self, env_ids=None):
         ids = slice(None) if env_ids is None else env_ids
         self.metrics["goal_reach_count"][ids] = self.goal_count[ids]
-        self.metrics["orientation_error"][ids] = self.error()[ids]
+        self.metrics["ori_error"][ids] = self.error()[ids]
+        self.metrics["hold_counter"][ids] = self.hold[ids]
+        self.metrics["goal_timer"][ids] = self.goal_timer[ids]
+        self.metrics["in_success_window"][ids] = self.window[ids] > 0
+        self.metrics["window_timer"][ids] = self.window[ids]
 
     def _update_command(self, env_ids):
         if env_ids is not None:
             return  # reset backfills the new goal; no episode time has elapsed
         within = self.error() < self.cfg.success_threshold
+        self.goal_timer += 1
         self.success.fill(False)
         approaching = self.window == 0
         self.hold[:] = np.where(within, self.hold + 1, 0)
@@ -110,6 +128,7 @@ class ReorientCommand(CommandTerm):
     def reset(self, env_ids):
         extras = super().reset(env_ids)
         self.goal_count[env_ids] = 0
+        self.goal_timer[env_ids] = 0
         self.cage_counter[env_ids] = 0
         self.outside[env_ids] = False
         self.perturbation[env_ids] = 0
@@ -118,4 +137,4 @@ class ReorientCommand(CommandTerm):
 
 
 def task(env) -> ReorientCommand:
-    return env.command_manager.get_term("reorient")
+    return env.command_manager.get_term("reorient_command")

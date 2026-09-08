@@ -54,9 +54,9 @@ CUDA 检查必须为 `True` 才能继续训练。`wuji-assets` 校验本地资�
 
 | 依赖 | 固定提交 |
 | --- | --- |
-| UniLab | `55a5e14952208d3db881421d843a1a13e05690c4` |
-| UniSim / `unisim-core` | `c82d8cec796d6ce43862cd0574a14d0a1ba6c3c9` |
-| unilab-rl / `uni_rl` | `9bdf5e882c77b67496a2af3bbfd314edde532ceb` |
+| UniLab | `9e3bb6b814d694d52bfff0f074d0a2b8ede6f032` |
+| UniSim / `unisim-core` 1.1.4 | `ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445` |
+| unilab-rl / `uni_rl` 1.1.1 | `793de3ade6b992a5d1a4da8681a128313b8188a1` |
 
 这组提交包含迁移所需的 reset、域随机化和训练状态接口；仅安装同名已发布版本或最新 `main`
 不能替代该锁定环境。当前物理依赖为 MuJoCo/MuJoCo-Warp `3.11.0`、Warp `1.16.0`，
@@ -143,9 +143,22 @@ uv run --no-sync tensorboard --logdir logs --host 127.0.0.1 --port 6006
 ```
 
 检查 `run_summary.json` 的完成状态、采样量、耗时，并结合 TensorBoard 中的 reward、episode 长度、
-success、orientation error、掉落相关终止和数值稳定性分析结果。日志里的训练期 success 不能直接作为
-独立测试集成功率。pc823 的完整训练记录及源项目公开结果可比性说明见
+goal reach count、orientation error、掉落相关终止和数值稳定性分析结果。训练期 goal count 不能直接
+作为独立测试集成功率。pc823 的完整训练记录及源项目公开结果可比性说明见
 [训练结果报告](docs/training-result-pc823.md)。
+
+当前 TensorBoard 名称尽量与源仓库对齐，便于把两个 run 放进同一张表。Reward 使用
+`orientation_alignment`、`hand_pose`、`action_rate`、`torque`、`tip_slide`、
+`cage_escape`、`finger_collision`、`hold_escalation`、`palm_detach`；command 使用
+`Metrics/reorient_command/*`；termination 使用 `time_out` 和 `cage_drop`；curriculum 使用
+`success_curriculum` 和 `adaptive_episode`。Episode metrics 对齐了源仓库可由当前公开 API
+可靠计算的名称。`orientation_error` 和 `torque_rms` 是本项目额外诊断项。
+
+源仓库的 `goal_reach_count` 本身是 episode 内累积目标数的训练信号，不是独立 trial 成功率。
+本项目不再把它写成含义错误的 `success`，而是按源名称和 mean reduction 记录为
+`Episode_Metrics/goal_reach_count`。源仓库公开的 sim2sim success rate 来自独立的 100-trial
+评估程序，不能通过重命名训练标量得到。当前公开 mjwarp Entity API 没有 joint acceleration，
+因此本项目不输出 `joint_acceleration_rms`，也不以速度差分冒充原生加速度。
 
 ## 回放与 eval
 
