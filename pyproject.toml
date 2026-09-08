@@ -33,6 +33,7 @@ wuji-play = "wuji_unilab.cli:play_main"
 wuji-list-envs = "wuji_unilab.cli:list_main"
 wuji-assets = "wuji_unilab.assets:main"
 wuji-export = "wuji_unilab.export:main"
+wuji-eval = "wuji_unilab.eval:main"
 
 [project.optional-dependencies]
 deploy = ["opencv-contrib-python>=4.13,<5", "pupil-apriltags>=1.0", "pyzmq>=27", "wujihandpy==1.5.1", "pyyaml>=6"]

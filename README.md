@@ -186,9 +186,22 @@ uv run --no-sync wuji-play --task WujiHand_Reorient \
 ```
 
 `training.play_render_mode=none` 的含义是跳过回放，不能用它执行无渲染 eval。
-当前 `wuji-play` 是 checkpoint 推理/可视化入口，尚未提供独立的标准化质量评测命令或自动生成的
-多 seed 成功率报告。正式与 wuji-mjlab 比较时，需要先固定 SO(3) 目标分布、成功/掉落定义、
-episode 数量、环境扰动条件和训练交互预算，再测 success、goals/time、drops、survival 等指标。
+`wuji-play` 是 checkpoint 推理/可视化入口；成功率使用与源仓库默认 trial 定义对齐的
+mjwarp 评估入口：
+
+```bash
+uv run --no-sync wuji-eval --task WujiHand_Reorient \
+  --checkpoint-file /absolute/path/to/run/model_4999.pt \
+  --num-trials 100 --output eval_results.json
+```
+
+默认每个 trial 最多 14 秒，目标相对当前物体姿态至少相差 90°，姿态误差 `<0.2 rad`
+连续 5 个控制步算成功；成功后保留场景继续下一个目标，掉落或超时才 reset。JSON 输出包含
+`success_rate`、`drop_rate`、`timeout_rate`、`mean_goal_reaches`、
+`mean_time_to_first_success_s`、`mean_min_orientation_error_rad` 和逐 trial 结果。
+
+统计定义与原版公开 evaluator 对齐，但本入口仍严格使用 mjwarp 和 PyTorch checkpoint；原版公开报告
+使用 CPU MuJoCo 和 ONNX。正式比较时还应保持 checkpoint、seed、环境扰动和软件版本记录一致。
 不同奖励尺度下的 reward 曲线不能直接对比。
 
 ## ONNX 导出
