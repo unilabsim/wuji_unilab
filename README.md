@@ -44,6 +44,14 @@ uv run --no-sync wuji-eval --task WujiHand_Reorient --checkpoint-file /path/to/m
 
 结果写入 JSON。该口径与源项目 evaluator 对齐，但本入口使用 PyTorch checkpoint 和 mjwarp；源项目公开 evaluator 使用 CPU MuJoCo 与 ONNX，结果需谨慎比较。
 
+评估内嵌录像（在 trial 循环中缓存物理快照，结束后渲染为带 goal 姿态 ghost 立方体与坐标三元轴的 mp4，需 EGL 离屏渲染）：
+
+```bash
+MUJOCO_GL=egl uv run --no-sync wuji-eval --task WujiHand_Reorient --checkpoint-file /path/to/model_4999.pt --num-trials 5 --record
+```
+
+视频默认写到 `<checkpoint_dir>/eval_video.mp4`，可用 `--video-output` 覆盖；JSON 结果额外包含 `record_video` 字段。不带 `--record` 时行为与 JSON 输出完全不变。
+
 离屏录制（EGL）：
 
 ```bash

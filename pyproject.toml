@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
 dependencies = [
   "unilab[mjwarp]==1.1.0",
-  "unisim-core==1.1.4",
+  "unisim-core==1.1.5",
   "unilab-rl==1.1.1",
   "torch==2.8.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
   "mujoco==3.11.0",
@@ -48,10 +48,11 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"}]
-# Pin reviewed commits reachable from each upstream main branch. UniSim and
-# unilab-rl use their first releases containing the Wuji owner contracts.
-unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "9e3bb6b814d694d52bfff0f074d0a2b8ede6f032"}
-unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445"}
+# Pin reviewed commits. UniSim and unilab-rl use their first releases
+# containing the Wuji owner contracts; unilab and unisim-core currently pin the
+# maintainer-approved issue #21 overlay branches (see issue #1, roadmap child C).
+unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "5bc9bc68289165966140551b1dd2ca552448f059"}
+unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "30092738f9cd5a18edc540b2615fa2fcf08b8e22"}
 unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "793de3ade6b992a5d1a4da8681a128313b8188a1"}
 
 [tool.uv]
