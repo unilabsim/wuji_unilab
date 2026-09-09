@@ -13,11 +13,15 @@ the playback renderer applies grid offsets itself.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from unisim.backend.base import DebugOverlayGetter, DebugPrimitive
 
-from .commands import ReorientCommand, task
 from .math import multiply
+
+if TYPE_CHECKING:
+    from .commands import ReorientCommand
 
 GOAL_MESH_ASSET = "object/cube_mesh"
 GOAL_VIS_Z_OFFSET = 0.15
@@ -65,11 +69,17 @@ def goal_debug_overlay_primitives(state: ReorientCommand) -> list[list[DebugPrim
     return overlays
 
 
-def goal_overlay_getter(env) -> DebugOverlayGetter:
-    """Return the per-frame goal overlay getter for a Wuji reorient env."""
-    state = task(env)
+def goal_overlay_getter_for_command(state: ReorientCommand) -> DebugOverlayGetter:
+    """Return the per-frame goal overlay getter bound to a command term."""
 
     def _get_overlay() -> list[list[DebugPrimitive]]:
         return goal_debug_overlay_primitives(state)
 
     return _get_overlay
+
+
+def goal_overlay_getter(env) -> DebugOverlayGetter:
+    """Return the per-frame goal overlay getter for a Wuji reorient env."""
+    from .commands import task
+
+    return goal_overlay_getter_for_command(task(env))

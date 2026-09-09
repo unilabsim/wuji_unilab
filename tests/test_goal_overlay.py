@@ -2,9 +2,11 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from unilab.envs import ManagerBasedRlEnv
 from unisim.backend.base import DebugPrimitive
 
 from wuji_unilab.tasks.reorient import overlay
+from wuji_unilab.tasks.reorient.commands import ReorientCommand
 from wuji_unilab.tasks.reorient.math import multiply
 
 
@@ -74,3 +76,39 @@ def test_goal_overlay_reflects_live_state_between_calls():
     assert second.pos == pytest.approx((0.3, 0.0, 0.6 + overlay.GOAL_VIS_Z_OFFSET))
     assert second.quat == pytest.approx((0.0, 1.0, 0.0, 0.0))
     assert first.pos != second.pos
+
+
+def _fake_term(state):
+    return SimpleNamespace(
+        playback_debug_overlay_getter=lambda: overlay.goal_overlay_getter_for_command(state)
+    )
+
+
+def test_command_term_opts_into_playback_overlay_discovery():
+    assert callable(getattr(ReorientCommand, "playback_debug_overlay_getter", None))
+
+
+def test_manager_env_discovers_goal_overlay_from_command_term():
+    env, state = _fake_env(1, [[0.0, 0.0, 0.5]], [[1.0, 0.0, 0.0, 0.0]], [[1.0, 0.0, 0.0, 0.0]])
+    term = _fake_term(state)
+    mock_env = SimpleNamespace(
+        num_envs=1,
+        command_manager=SimpleNamespace(
+            active_terms=["reorient_command"], get_term=lambda name: term
+        ),
+    )
+    getter = ManagerBasedRlEnv.get_playback_debug_overlays(mock_env)
+    assert getter is not None
+    overlays = getter()
+    assert [primitive.kind for primitive in overlays[0]] == ["ghost_geom", "frame"]
+    assert overlays[0][0].mesh_asset == overlay.GOAL_MESH_ASSET
+
+
+def test_manager_env_returns_none_without_overlay_providers():
+    mock_env = SimpleNamespace(
+        num_envs=1,
+        command_manager=SimpleNamespace(
+            active_terms=["reorient_command"], get_term=lambda name: SimpleNamespace()
+        ),
+    )
+    assert ManagerBasedRlEnv.get_playback_debug_overlays(mock_env) is None
