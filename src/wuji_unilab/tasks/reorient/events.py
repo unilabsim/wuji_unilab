@@ -207,15 +207,8 @@ class FixedRandomization(ManagerTermBase):
             self.samples["encoder"] = env.rng.uniform(
                 *ranges["encoder"], size=self.robot.data.joint_pos.shape
             ).astype(np.float32)
-        progress = np.clip((env.common_step_counter / max(total_steps, 1) - 0.05) / 0.60, 0, 1)
-        friction_scale = 1 - 0.5 * progress
-        size_scale = 1 - 0.05 * progress
         for name, (_, local_ids, _, write, selector) in self.bindings.items():
             values = self.samples[name][ids]
-            if name == "friction":
-                values = values * friction_scale
-            elif name == "hand_size":
-                values = values * size_scale
             write(values, env_ids=ids, term_name="wuji_randomize", **{selector: local_ids})
         self.robot.write_actuator_gains_to_sim(
             self.samples["kp"][ids],
@@ -229,7 +222,6 @@ class FixedRandomization(ManagerTermBase):
             self.ratios[name][ids].reshape(len(ids), -1).mean(axis=1)
             for name in ("friction", "cube_mass", "kp", "kd", "damping", "cube_size")
         ]
-        values[0] *= friction_scale
         task(env).dr_ratios[ids] = np.stack(values, axis=-1)
 
 
@@ -241,15 +233,19 @@ class VelocityDisturbance(ManagerTermBase):
 
     def __call__(self, env, env_ids, speed_range: tuple, min_episode_s: float, total_steps: int):
         ids = np.arange(env.num_envs) if env_ids is None else env_ids
+        state = task(env)
+        state.perturbation[ids] = 0
+        state.force_direction[ids] = 0
         ids = ids[env.episode_length_buf[ids] * env.step_dt >= min_episode_s]
         if not len(ids):
             return
-        state = task(env)
         direction = env.rng.normal(size=(len(ids), 3))
         direction /= np.maximum(np.linalg.norm(direction, axis=-1, keepdims=True), 1e-9)
         progress = np.clip((env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0, 1)
-        speed = (speed_range[0] + progress * (speed_range[1] - speed_range[0])) * state.adaptive
+        curr_max = speed_range[0] + (speed_range[1] - speed_range[0]) * progress * state.adaptive
+        speed = env.rng.uniform(speed_range[0], max(speed_range[0], curr_max), (len(ids), 1))
         delta = np.asarray(direction * speed, dtype=np.float32)
         self.cube.apply_root_linear_velocity_delta_to_sim(delta, env_ids=ids)
         state.perturbation[ids, :3] = delta
         state.perturbation[ids, 3:] = 0
+        state.force_direction[ids] = direction

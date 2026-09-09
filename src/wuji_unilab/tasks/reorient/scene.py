@@ -47,6 +47,7 @@ def materialize_scene() -> SceneDescription:
     cache.mkdir(parents=True, exist_ok=True)
     spec = mujoco.MjSpec()
     spec.option.timestep = 0.01
+    spec.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     spec.option.iterations = 10
     spec.option.ls_iterations = 20
     cube_root = ASSET_ROOT / "objects/inhand_object"

@@ -16,13 +16,13 @@ def feature(env, kind: str, injection_prob: float = 0.0):
         action = env.action_manager.get_term("joint_pos")
         center = action.limits.mean(axis=-1)
         half = np.maximum((action.limits[:, 1] - action.limits[:, 0]) * 0.5, 1e-6)
-        joint = np.clip((robot.data.joint_pos - center) / half, -1, 1)
+        joint = np.clip((robot.data.joint_pos_biased - center) / half, -1, 1)
         return joint if kind == "joint" else joint - np.clip((action.target - center) / half, -1, 1)
     if kind == "position":
         value = state.cube_tag()[0]
         if injection_prob:
             mask = env.rng.random(env.num_envs) < injection_prob
-            value[mask] += env.rng.uniform(-0.1, 0.1, (int(mask.sum()), 3))
+            value[mask] = env.rng.uniform(-0.5, 0.5, (int(mask.sum()), 3))
         return value
     if kind == "orientation":
         q = multiply(state.cube_tag()[1], conjugate(state.goal))
@@ -51,7 +51,7 @@ def feature(env, kind: str, injection_prob: float = 0.0):
     if kind == "progress":
         return np.stack(
             (
-                state.hold / state.cfg.success_hold_steps,
+                np.where(state.window > 0, 0, state.hold) / state.cfg.success_hold_steps,
                 state.window / state.cfg.goal_switch_delay,
                 env.episode_length_buf / env.max_episode_length,
                 state.goal_count,

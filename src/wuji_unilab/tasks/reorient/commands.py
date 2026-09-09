@@ -49,6 +49,8 @@ class ReorientCommand(CommandTerm):
         self.goal_timer = np.zeros(env.num_envs, dtype=np.int32)
         self.window = np.zeros(env.num_envs, dtype=np.int32)
         self.success = np.zeros(env.num_envs, dtype=bool)
+        self.within = np.zeros(env.num_envs, dtype=bool)
+        self.reward_timer = np.zeros(env.num_envs, dtype=np.int32)
         self.cage_counter = np.zeros(env.num_envs, dtype=np.float32)
         self.outside = np.zeros(env.num_envs, dtype=bool)
         self.perturbation = np.zeros((env.num_envs, 6), dtype=np.float32)
@@ -98,12 +100,13 @@ class ReorientCommand(CommandTerm):
         self.goal_timer[env_ids] = 0
         self.window[env_ids] = 0
         self.success[env_ids] = False
+        self.reward_timer[env_ids] = 0
 
     def _update_metrics(self, env_ids=None):
         ids = slice(None) if env_ids is None else env_ids
         self.metrics["goal_reach_count"][ids] = self.goal_count[ids]
         self.metrics["ori_error"][ids] = self.error()[ids]
-        self.metrics["hold_counter"][ids] = self.hold[ids]
+        self.metrics["hold_counter"][ids] = np.where(self.window[ids] > 0, 0, self.hold[ids])
         self.metrics["goal_timer"][ids] = self.goal_timer[ids]
         self.metrics["in_success_window"][ids] = self.window[ids] > 0
         self.metrics["window_timer"][ids] = self.window[ids]
@@ -112,11 +115,17 @@ class ReorientCommand(CommandTerm):
         if env_ids is not None:
             return  # reset backfills the new goal; no episode time has elapsed
         within = self.error() < self.cfg.success_threshold
+        self.within[:] = within
         self.goal_timer += 1
         self.success.fill(False)
         approaching = self.window == 0
         self.hold[:] = np.where(within, self.hold + 1, 0)
         succeeded = approaching & (self.hold >= self.cfg.success_hold_steps)
+        in_window = ~approaching | succeeded
+        self.reward_timer[:] = np.where(
+            in_window & within, self.reward_timer + 1, self.reward_timer
+        )
+        self.reward_timer[succeeded] = 0
         self.success[succeeded] = True
         self.goal_count[succeeded] += 1
         self.window[succeeded] = 1
@@ -129,6 +138,8 @@ class ReorientCommand(CommandTerm):
         extras = super().reset(env_ids)
         self.goal_count[env_ids] = 0
         self.goal_timer[env_ids] = 0
+        self.within[env_ids] = False
+        self.reward_timer[env_ids] = 0
         self.cage_counter[env_ids] = 0
         self.outside[env_ids] = False
         self.perturbation[env_ids] = 0
