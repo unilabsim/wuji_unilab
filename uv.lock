@@ -1626,7 +1626,7 @@ wheels = [
 [[package]]
 name = "unilab"
 version = "1.1.0"
-source = { git = "https://github.com/Motphys/UniLab.git?rev=f6d3be13a60956c03514a0faf50712dc9277a10b#f6d3be13a60956c03514a0faf50712dc9277a10b" }
+source = { git = "https://github.com/Motphys/UniLab.git?rev=6f2bfe3905c98f1c79e70e66bb72f3d8a7987caa#6f2bfe3905c98f1c79e70e66bb72f3d8a7987caa" }
 dependencies = [
     { name = "etils" },
     { name = "gymnasium" },
@@ -1683,7 +1683,7 @@ dependencies = [
 [[package]]
 name = "unisim-core"
 version = "1.1.5"
-source = { git = "https://github.com/unilabsim/unisim.git?rev=0168a27044c1eb3e41c48621ff89a4a96a7d5266#0168a27044c1eb3e41c48621ff89a4a96a7d5266" }
+source = { git = "https://github.com/unilabsim/unisim.git?rev=c0cb5cbe65f5493eea22d9a38ee8e0b08209de16#c0cb5cbe65f5493eea22d9a38ee8e0b08209de16" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1802,9 +1802,9 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.0.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==2.8.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=f6d3be13a60956c03514a0faf50712dc9277a10b" },
+    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=6f2bfe3905c98f1c79e70e66bb72f3d8a7987caa" },
     { name = "unilab-rl", git = "https://github.com/unilabsim/unilab_rl.git?rev=793de3ade6b992a5d1a4da8681a128313b8188a1" },
-    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=0168a27044c1eb3e41c48621ff89a4a96a7d5266" },
+    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=c0cb5cbe65f5493eea22d9a38ee8e0b08209de16" },
     { name = "warp-lang", specifier = "==1.16.0" },
     { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.5.1" },
 ]

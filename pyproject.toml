@@ -48,11 +48,11 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"}]
-# Pin reviewed commits. UniSim and unilab-rl use their first releases
-# containing the Wuji owner contracts; unilab and unisim-core currently pin the
-# maintainer-approved issue #21 overlay branches (see issue #1, roadmap child C).
-unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "f6d3be13a60956c03514a0faf50712dc9277a10b"}
-unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "0168a27044c1eb3e41c48621ff89a4a96a7d5266"}
+# Pin reviewed commits. unisim-core tracks the upstream main head (issue #21
+# overlay contract merged via unisim#53/#54/#56); unilab pins the
+# maintainer-approved UniLab#1548 branch head until that PR merges.
+unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "6f2bfe3905c98f1c79e70e66bb72f3d8a7987caa"}
+unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "c0cb5cbe65f5493eea22d9a38ee8e0b08209de16"}
 unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "793de3ade6b992a5d1a4da8681a128313b8188a1"}
 
 [tool.uv]
