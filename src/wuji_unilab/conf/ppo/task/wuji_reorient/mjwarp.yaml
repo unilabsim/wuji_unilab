@@ -482,11 +482,10 @@ training:
   no_play: true
   play_render_mode: record
   play_env_num: 4
+  # Record mode frames all play_env_num grid cells: lookat falls back to the
+  # grid center and the renderer auto-fits the distance; cam_distance stays a
+  # close-up default for interactive playback.
   cam_distance: 0.6
-  cam_lookat:
-  - 0
-  - 0
-  - 0.5
   play_steps: 200
   log_root: logs
 reward:

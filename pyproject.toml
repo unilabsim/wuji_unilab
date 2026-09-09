@@ -48,11 +48,11 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"}]
-# Pin reviewed commits. unisim-core tracks the upstream main head (issue #21
-# overlay contract merged via unisim#53/#54/#56); unilab pins the
-# maintainer-approved UniLab#1548 branch head until that PR merges.
-unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "6f2bfe3905c98f1c79e70e66bb72f3d8a7987caa"}
-unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "c0cb5cbe65f5493eea22d9a38ee8e0b08209de16"}
+# Pin reviewed commits. unisim-core tracks the playback mocap/ghost-material
+# fix branch head until unisim#57 merges; unilab pins the maintainer-approved
+# UniLab#1548 branch head until that PR merges.
+unilab = {git = "https://github.com/Motphys/UniLab.git", rev = "19722f0717d791a12a0caaeeff37dd2fca317843"}
+unisim-core = {git = "https://github.com/unilabsim/unisim.git", rev = "38a3d19bdd1ffb3a22b5f9be3ba98e81a7ab1fc1"}
 unilab-rl = {git = "https://github.com/unilabsim/unilab_rl.git", rev = "793de3ade6b992a5d1a4da8681a128313b8188a1"}
 
 [tool.uv]
