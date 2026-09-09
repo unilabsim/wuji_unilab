@@ -64,7 +64,6 @@ class ReorientCommand(CommandTerm):
             "in_success_window": np.zeros(env.num_envs, dtype=np.float32),
             "window_timer": np.zeros(env.num_envs, dtype=np.float32),
         }
-        env.playback_overlay_provider = self.playback_overlays
 
     @property
     def command(self):
@@ -92,28 +91,6 @@ class ReorientCommand(CommandTerm):
 
     def error(self):
         return angle_error(self.cube_tag()[1], self.goal)
-
-    def playback_overlays(self):
-        """Return the task-owned target-cube overlay for playback renderers."""
-        _, palm_quat = self.palm_pose()
-        # The target is a visual goal above the live object, not the hand-root
-        # mocap body used by physics reset.
-        target_pos = self.cube.data.root_link_pos_w + np.array([0.0, 0.0, 0.10], dtype=np.float32)
-        target_quat = multiply(palm_quat, self.goal)
-        return {
-            "overlays": [
-                [
-                    {
-                        "type": "box",
-                        "pos": target_pos[env_id],
-                        "quat": target_quat[env_id],
-                        "size": [0.027, 0.027, 0.027],
-                        "rgba": [0.9, 0.2, 0.1, 0.45],
-                    }
-                ]
-                for env_id in range(self.num_envs)
-            ]
-        }
 
     def _resample_command(self, env_ids):
         self.goal[env_ids] = random_quaternions(self._env.rng, len(env_ids))
