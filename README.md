@@ -56,6 +56,13 @@ uv run --no-sync wuji-play --task WujiHand_Reorient --checkpoint-file /path/to/m
 uv run --no-sync wuji-play --task WujiHand_Reorient --checkpoint-file /path/to/model_4999.pt training.play_render_mode=interactive
 ```
 
+交互式模式需要 GLFW/X11；如果 shell 中为离屏录制设置过 `MUJOCO_GL=egl`，请先取消该变量：
+
+```bash
+env -u MUJOCO_GL uv run --no-sync wuji-play --task WujiHand_Reorient \
+  --checkpoint-file /path/to/model_4999.pt training.play_render_mode=interactive
+```
+
 仅使用 `mjwarp` 物理，渲染器复用 MuJoCo；可用 `CUDA_VISIBLE_DEVICES=1` 选择 GPU。`training.play_render_mode=none` 只跳过渲染，不执行统计评估。
 
 ## 开发与许可
