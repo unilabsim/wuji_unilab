@@ -17,11 +17,14 @@ from unilab.base import registry
 from unilab.base.config_adapter import BackendAdapter
 from unilab.envs import ManagerBasedRlEnv
 from unilab.training import algo_config_dict
+from unilab.visualization.playback_session import SnapshotPlaybackSession
+from unisim.backend.base import CameraCfg
 
 from wuji_unilab.config import compose_task
 from wuji_unilab.rl.runtime import WujiWrapper
 from wuji_unilab.tasks.reorient.commands import task
 from wuji_unilab.tasks.reorient.math import angle_error, random_quaternions
+from wuji_unilab.tasks.reorient.overlay import goal_overlay_getter
 
 
 @dataclass(frozen=True)
@@ -69,7 +72,32 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--drop-height", type=float, default=-0.15)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--record",
+        action="store_true",
+        help="Record the evaluated trials to an mp4 with the goal-pose overlay",
+    )
+    parser.add_argument(
+        "--video-output",
+        type=Path,
+        help="Recording output path (default: <checkpoint dir>/eval_video.mp4)",
+    )
     return parser
+
+
+def _require_record_capabilities(env: ManagerBasedRlEnv) -> None:
+    """Fail fast when --record is requested on an env without playback support."""
+    capabilities = getattr(env, "play_capabilities", None)
+    if capabilities is None or not capabilities.supports_physics_state_playback:
+        raise RuntimeError(
+            "wuji-eval --record requires physics-state playback support; "
+            f"{type(env).__name__} does not advertise it"
+        )
+    if not capabilities.supports_debug_overlay:
+        raise RuntimeError(
+            "wuji-eval --record draws the goal-pose overlay; "
+            f"{type(env).__name__} does not advertise debug overlay support"
+        )
 
 
 def _sample_separated_goal(rng: np.random.Generator, current: np.ndarray) -> np.ndarray:
@@ -132,7 +160,12 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     wrapper = WujiWrapper(env, device="cuda:0")
     rng = np.random.default_rng(args.seed)
     trials: list[TrialOutcome] = []
+    record_video: str | None = None
     try:
+        session: SnapshotPlaybackSession | None = None
+        if args.record:
+            _require_record_capabilities(env)
+            session = SnapshotPlaybackSession(env, overlay_getter=goal_overlay_getter(env))
         runner = TrainingStateOnPolicyRunner(
             wrapper, normalize_ppo_train_cfg(algo_config_dict(cfg)), device="cuda:0"
         )
@@ -166,9 +199,13 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             status = "timeout"
             hold_steps = 0
             with torch.inference_mode():
+                if session is not None:
+                    session.snapshot()
                 for step in range(1, timeout_steps + 1):
                     actions = policy(obs)
                     obs, _, _, _ = wrapper.step(actions)
+                    if session is not None:
+                        session.snapshot()
                     final_error = float(state.error()[0])
                     min_error = min(min_error, final_error)
                     hold_steps = hold_steps + 1 if final_error < args.success_threshold else 0
@@ -196,6 +233,13 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             print(
                 f"trial {trial_idx + 1}/{args.num_trials}: {status}, min_error={min_error:.4f} rad"
             )
+        if session is not None:
+            video_output = args.video_output or args.checkpoint_file.with_name("eval_video.mp4")
+            video_output.parent.mkdir(parents=True, exist_ok=True)
+            record_video = session.render_snapshots(
+                output_video=video_output,
+                camera=CameraCfg(cam_distance=0.6, cam_lookat=(0.0, 0.0, 0.5)),
+            )
     finally:
         env.close()
 
@@ -220,6 +264,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         **summarize(trials),
         "trials": [asdict(trial) for trial in trials],
     }
+    if args.record:
+        result["record_video"] = record_video
     output = args.output or args.checkpoint_file.with_name("eval_results.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2) + "\n")

@@ -71,6 +71,12 @@ class ReorientCommand(CommandTerm):
     def command(self):
         return self.goal
 
+    def playback_debug_overlay_getter(self):
+        """Opt in to UniLab playback overlay discovery with the goal marker."""
+        from .overlay import goal_overlay_getter_for_command
+
+        return goal_overlay_getter_for_command(self)
+
     def palm_pose(self):
         return (
             self.robot.data.body_link_pos_w[:, self.palm_id],

@@ -1626,7 +1626,7 @@ wheels = [
 [[package]]
 name = "unilab"
 version = "1.1.0"
-source = { git = "https://github.com/Motphys/UniLab.git?rev=9e3bb6b814d694d52bfff0f074d0a2b8ede6f032#9e3bb6b814d694d52bfff0f074d0a2b8ede6f032" }
+source = { git = "https://github.com/Motphys/UniLab.git?rev=f6d3be13a60956c03514a0faf50712dc9277a10b#f6d3be13a60956c03514a0faf50712dc9277a10b" }
 dependencies = [
     { name = "etils" },
     { name = "gymnasium" },
@@ -1682,8 +1682,8 @@ dependencies = [
 
 [[package]]
 name = "unisim-core"
-version = "1.1.4"
-source = { git = "https://github.com/unilabsim/unisim.git?rev=ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445#ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445" }
+version = "1.1.5"
+source = { git = "https://github.com/unilabsim/unisim.git?rev=0168a27044c1eb3e41c48621ff89a4a96a7d5266#0168a27044c1eb3e41c48621ff89a4a96a7d5266" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1802,9 +1802,9 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.0.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==2.8.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=9e3bb6b814d694d52bfff0f074d0a2b8ede6f032" },
+    { name = "unilab", extras = ["mjwarp"], git = "https://github.com/Motphys/UniLab.git?rev=f6d3be13a60956c03514a0faf50712dc9277a10b" },
     { name = "unilab-rl", git = "https://github.com/unilabsim/unilab_rl.git?rev=793de3ade6b992a5d1a4da8681a128313b8188a1" },
-    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=ea5e6c6f3b7f55bbf97dec3f33dc8e8ff3f60445" },
+    { name = "unisim-core", git = "https://github.com/unilabsim/unisim.git?rev=0168a27044c1eb3e41c48621ff89a4a96a7d5266" },
     { name = "warp-lang", specifier = "==1.16.0" },
     { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.5.1" },
 ]
