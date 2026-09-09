@@ -42,19 +42,19 @@ def reward(env, kind: str):
             a.action - 2 * a.prev_action + a.prev_prev_action
         ).sum(axis=-1)
     if kind == "torque":
-        return np.square(state.views["actuator_force"].read()).sum(axis=-1)
+        force = state.views["actuator_force"].read()
+        return np.square(force / state.actuator_force_limits).sum(axis=-1)
     if kind == "tip_slide":
         velocity = state.views["tip_velocity"].read().reshape(env.num_envs, 5, 3)
+        rel = velocity - state.cube.data.root_link_lin_vel_w[:, None, :]
         found = state.views["tips_found"].read() > 0
-        return (np.square(velocity).sum(axis=-1) * found).sum(axis=-1)
+        return (np.linalg.norm(rel, axis=-1) * found).sum(axis=-1)
     if kind in ("cage", "cage_escape"):
         return state.outside * state.cage_counter / 10 * 4
     if kind in ("collision", "finger_collision"):
         return (state.views["self_found"].read() > 0).sum(axis=-1).astype(np.float32)
     if kind in ("hold", "hold_escalation"):
-        return np.where(
-            state.window > 0, np.minimum(state.hold / state.cfg.success_hold_steps, 4), 0
-        )
+        return ((state.window > 0) & state.within).astype(np.float32) * state.reward_timer
     if kind == "palm_detach":
         return (
             (state.views["distal_found"].read() > 0).any(axis=-1)
