@@ -1,0 +1,48 @@
+<mujoco>
+  <!-- Shared cube definition for Wuji Hand reorientation task
+       54mm edge cube (size=0.027), mass=120g
+       Paths are relative to objects/cube/ directory -->
+
+  <compiler assetdir=".."/>
+
+  <!-- Contact parameter design:
+       Hand:  priority=1, solref=[0.02, 1.5], solimp=[0.9, 0.95, 0.001]
+       Cube:  priority=0 (lower), solref/solimp ignored when contacting hand
+       -> Hand's contact params always used (priority mechanism) -->
+  <default>
+    <default class="cube">
+      <geom friction=".3" conaffinity="2" condim="3" priority="0"
+            solref="0.015 1.0" solimp="0.85 0.85 0.001"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture name="cube" type="cube" fileup="textures/fileup.png"
+      fileback="textures/fileback.png" filedown="textures/filedown.png"
+      filefront="textures/filefront.png" fileleft="textures/fileleft.png"
+      fileright="textures/fileright.png"/>
+    <material name="cube" texture="cube"/>
+    <texture name="graycube" type="cube" fileup="textures/grayup.png"
+      fileback="textures/grayback.png" filedown="textures/graydown.png"
+      filefront="textures/grayfront.png" fileleft="textures/grayleft.png"
+      fileright="textures/grayright.png"/>
+    <material name="graycube" texture="graycube"/>
+    <texture name="dexcube" type="2d" file="textures/dex_cube.png"/>
+    <material name="dexcube" texture="dexcube"/>
+    <mesh name="cube_mesh" file="meshes/dex_cube.obj" scale="0.027 0.027 0.027"/>
+  </asset>
+
+  <worldbody>
+    <!-- SYNC REQUIRED: Update all 3 locations together!
+         1. HERE: cube body pos/quat (for viewer Reset)
+         2. scene.xml: grasp_ref site pos (for position reward)
+         3. scene.xml: keyframe qpos last 7 values (for h-key reset)
+         Use scripts/tools/pose_editor.py to calibrate. -->
+    <body name="cube" pos="-0.1404 0.0042 0.52" quat="0.3894 -0.3796 -0.5980 -0.5888" childclass="cube">
+      <freejoint name="cube_freejoint"/>
+      <geom type="mesh" mesh="cube_mesh" material="dexcube" contype="0" conaffinity="0" density="0" group="2"/>
+      <geom name="cube" type="box" size=".027 .027 .027" mass=".120" group="3"/>
+      <site name="cube_center" pos="0 0 0" group="4"/>
+    </body>
+  </worldbody>
+</mujoco>

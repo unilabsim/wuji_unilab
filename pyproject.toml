@@ -1,0 +1,72 @@
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13"]
+build-backend = "uv_build"
+
+[project]
+name = "wuji-unilab"
+version = "0.1.0"
+description = "Wuji Hand reorientation and training capability validation on UniLab mjwarp"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = [
+  "unilab[mjwarp]==1.2.0",
+  "unisim-core==1.2.0",
+  "unilab-rl==1.2.0",
+  "torch==2.8.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "mujoco==3.11.0",
+  "mujoco-warp==3.11.0",
+  "warp-lang==1.16.0",
+  "rsl-rl-lib==5.0.1",
+  "scipy>=1.15,<2",
+  "onnx>=1.17",
+  "onnxruntime>=1.20",
+]
+
+[project.entry-points."unilab.tasks"]
+wuji_unilab = "wuji_unilab.tasks"
+
+[project.scripts]
+wuji-train = "wuji_unilab.cli:train_main"
+wuji-play = "wuji_unilab.cli:play_main"
+wuji-list-envs = "wuji_unilab.cli:list_main"
+wuji-assets = "wuji_unilab.assets:main"
+wuji-export = "wuji_unilab.export:main"
+wuji-eval = "wuji_unilab.eval:main"
+
+[project.optional-dependencies]
+deploy = ["opencv-contrib-python>=4.13,<5", "pupil-apriltags>=1.0", "pyzmq>=27", "wujihandpy==1.5.1", "pyyaml>=6"]
+
+[dependency-groups]
+dev = ["pytest>=9", "ruff>=0.15", "pyright>=1.1.408"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"}]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+include = ["src/wuji_unilab"]
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: requires CUDA and the actual mjwarp backend", "slow: bounded training or integration tests"]
+addopts = "--tb=short -m 'not gpu and not slow'"
