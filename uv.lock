@@ -1334,7 +1334,7 @@ wheels = [
 
 [[package]]
 name = "rsl-rl-lib"
-version = "5.0.1"
+version = "5.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitpython" },
@@ -1342,13 +1342,13 @@ dependencies = [
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnx" },
     { name = "onnxscript" },
+    { name = "tensorboard" },
     { name = "tensordict" },
     { name = "torch" },
-    { name = "torchvision" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/23/dae404688e571e73662b7754ab2a8bddcc48f625c338b7f55576ad528653/rsl_rl_lib-5.0.1.tar.gz", hash = "sha256:b6e1fce8f4481c6118d53c7b03b80c8070d0a1edd3df3efbec5e5e6ff7c92132", size = 58623, upload-time = "2026-03-04T08:19:49.671Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/0e/142a31e8124255ec9276516c49c6fbe1497f2146ea384a92b81d23e3c525/rsl_rl_lib-5.5.1.tar.gz", hash = "sha256:50129065b35c69735ea197343321145a400af8c1b5fe9a28116fdaf1890fab43", size = 68077, upload-time = "2026-09-09T11:28:51.656Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/25/293a8ffd929d40accab30057b962084601133bd8a6779c156c2f58eb93bc/rsl_rl_lib-5.0.1-py3-none-any.whl", hash = "sha256:2f71a4f753537faf7826d0b74815160e37c409b39ab80a4581524b7ef7bd8539", size = 84202, upload-time = "2026-03-04T08:19:48.044Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/d3/0d4d446c61cb61377802c9e4366cfab8a6c378b9dbcaaad376dcc152c03c/rsl_rl_lib-5.5.1-py3-none-any.whl", hash = "sha256:bdb6382e21c62ddc2b47a37f39318486d0dfde234c7d446bfd42be482ecbd6ea", size = 100035, upload-time = "2026-09-09T11:28:50.331Z" },
 ]
 
 [[package]]
@@ -1554,23 +1554,6 @@ wheels = [
 ]
 
 [[package]]
-name = "torchvision"
-version = "0.23.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pillow" },
-    { name = "torch" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/9c/fcb09aff941c8147d9e6aa6c8f67412a05622b0c750bcf796be4c85a58d4/torchvision-0.23.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:35c27941831b653f5101edfe62c03d196c13f32139310519e8228f35eae0e96a", size = 8628388, upload-time = "2025-08-06T14:58:07.802Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/b5/3e580dcbc16f39a324f3dd71b90edbf02a42548ad44d2b4893cc92b1194b/torchvision-0.23.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4e7d31c43bc7cbecbb1a5652ac0106b436aa66e26437585fc2c4b2cf04d6014c", size = 8627108, upload-time = "2025-08-06T14:58:12.956Z" },
-    { url = "https://files.pythonhosted.org/packages/a0/27/5ce65ba5c9d3b7d2ccdd79892ab86a2f87ac2ca6638f04bb0280321f1a9c/torchvision-0.23.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:a76fafe113b2977be3a21bf78f115438c1f88631d7a87203acb3dd6ae55889e6", size = 8627658, upload-time = "2025-08-06T14:58:15.999Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/f4/34662f71a70fa1e59de99772142f22257ca750de05ccb400b8d2e3809c1d/torchvision-0.23.0-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:76bc4c0b63d5114aa81281390f8472a12a6a35ce9906e67ea6044e5af4cab60c", size = 8800474, upload-time = "2025-08-06T14:58:22.53Z" },
-]
-
-[[package]]
 name = "tqdm"
 version = "4.70.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1625,7 +1608,7 @@ wheels = [
 
 [[package]]
 name = "unilab"
-version = "1.2.0"
+version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "etils" },
@@ -1655,9 +1638,9 @@ dependencies = [
     { name = "unisim-core" },
     { name = "wandb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/9d/d47f0741826cc49ed442035793f65b6625080ecc38bda10da3235b393d22/unilab-1.2.0.tar.gz", hash = "sha256:370eeb6f0b66862563648940dacc9cebb811eab1d949e72f42258f85adcbc752", size = 961835, upload-time = "2026-09-10T06:29:59.103Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/19/fc5ab7151e9a536d2d0006083a7338b03ac097f3ae5b217c1308f83b8721/unilab-1.3.1.tar.gz", hash = "sha256:f1dad03581a8ab3ca32b625c4a4abdd09e339cb93fc2fbe10a6db7fcde2ca9ae", size = 477908, upload-time = "2026-09-20T14:00:41.582Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/eb/7e9442b3e620bf099a65bd5ca122271bda3dde42e1ef337ef50b214d66fd/unilab-1.2.0-py3-none-any.whl", hash = "sha256:e8a968368775efcc12ce087677bf98aeac8661f9fcc54e2b9468cff913db3335", size = 1165614, upload-time = "2026-09-10T06:29:57.098Z" },
+    { url = "https://files.pythonhosted.org/packages/05/dd/759c9c289032ad85167071e00ae52d9c637049cf0ab5e3c96bc9605fff71/unilab-1.3.1-py3-none-any.whl", hash = "sha256:91e95fd750ea9669d15f41491a703385a4670978dcc45f8a1cdef4f84c056034", size = 608910, upload-time = "2026-09-20T14:00:39.866Z" },
 ]
 
 [package.optional-dependencies]
@@ -1668,7 +1651,7 @@ mjwarp = [
 
 [[package]]
 name = "unilab-rl"
-version = "1.2.0"
+version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "hydra-core" },
@@ -1683,20 +1666,20 @@ dependencies = [
     { name = "torch" },
     { name = "wandb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/9d/7a646bc044cadb48cbd1d0c58832faf59e037a45f22432cff2a7ad5a7b01/unilab_rl-1.2.0.tar.gz", hash = "sha256:bb8b1c713b961ea4b24ea72c39d443e057531e71882fa058502af947b98768da", size = 148289, upload-time = "2026-09-10T05:20:52.549Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/f6/79746e5e1e9e5fab29a86156223916308b252a22a0b8cd90ae3f0fc5c7ac/unilab_rl-1.3.0.tar.gz", hash = "sha256:eb518ecbce2cd05a41ebabec2b438d4dc4424aff2162b4122d937f1596791d77", size = 145151, upload-time = "2026-09-17T09:58:48.587Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/67/0ea1fb5f0c9a7e8604b0415b018deb3286024191a84d357f1b3221d2a41d/unilab_rl-1.2.0-py3-none-any.whl", hash = "sha256:617317dcca581d1af2daec36d50de7214067dd34f5d85a4f02d7cd38de1df611", size = 183372, upload-time = "2026-09-10T05:20:51.254Z" },
+    { url = "https://files.pythonhosted.org/packages/44/d9/a918a25a80c0bae30e18c280cd9dc6619cca8a1957cb98e18b42a54e3c94/unilab_rl-1.3.0-py3-none-any.whl", hash = "sha256:b8d89907362fd0ed4ca5d6d8bf0e34092416c8d8688459023a040377a561b5fb", size = 178985, upload-time = "2026-09-17T09:58:47.272Z" },
 ]
 
 [[package]]
 name = "unisim-core"
-version = "1.2.0"
+version = "1.7.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/b7/2cf8626884236d9e14256fa4330b9e04a8a41598867ced1ac4030f827989/unisim_core-1.2.0.tar.gz", hash = "sha256:fccd67edbde98eeb16d2e6f9f5f8ce608dd2790266a673788897cbd9a42fa4ce", size = 253069, upload-time = "2026-09-10T05:19:05.388Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/08/32981796a05eddeea94046d2c0301692250cdb76e149f21d7ff67f841c20/unisim_core-1.7.3.tar.gz", hash = "sha256:84d40e1b86076af73293a558d700eaa9801c64ff9384075fc954cfc94ed8a649", size = 498782, upload-time = "2026-09-20T13:24:05.454Z" }
 
 [[package]]
 name = "urllib3"
@@ -1808,14 +1791,14 @@ requires-dist = [
     { name = "pupil-apriltags", marker = "extra == 'deploy'", specifier = ">=1.0" },
     { name = "pyyaml", marker = "extra == 'deploy'", specifier = ">=6" },
     { name = "pyzmq", marker = "extra == 'deploy'", specifier = ">=27" },
-    { name = "rsl-rl-lib", specifier = "==5.0.1" },
+    { name = "rsl-rl-lib", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==2.8.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "unilab", extras = ["mjwarp"], specifier = "==1.2.0" },
-    { name = "unilab-rl", specifier = "==1.2.0" },
-    { name = "unisim-core", specifier = "==1.2.0" },
+    { name = "unilab", extras = ["mjwarp"], specifier = "==1.3.1" },
+    { name = "unilab-rl", specifier = "==1.3.0" },
+    { name = "unisim-core", specifier = "==1.7.3" },
     { name = "warp-lang", specifier = "==1.16.0" },
-    { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.5.1" },
+    { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.8.0" },
 ]
 provides-extras = ["deploy"]
 
@@ -1828,16 +1811,16 @@ dev = [
 
 [[package]]
 name = "wujihandpy"
-version = "1.5.1"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/58/cbe3c7107f45b2ec54cf26dd82bf0791d36576d214892e3bf6692e63bb29/wujihandpy-1.5.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:cf4fceccb5450c5a6b498281a53d760b898acb547e0a22a00223cea11ff30630", size = 1706875, upload-time = "2026-02-02T02:21:06.839Z" },
-    { url = "https://files.pythonhosted.org/packages/5d/c8/e59d3ef074647b35705ae4c5dde0772c74fde83899c181e8e948634c9609/wujihandpy-1.5.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4b4cea338aa8b12541d6a78bfd46832d1471a6a8b364cb7be8bea94431805eec", size = 1711001, upload-time = "2026-02-02T02:21:13.452Z" },
-    { url = "https://files.pythonhosted.org/packages/68/f3/6287cd77a93b560263b5e1942e21d1dbe81282d1c2a523281bc2944b00b3/wujihandpy-1.5.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:a7b763019dd009422a232929f688e1489a16c63a49b3cadfba70cabadcd81a2b", size = 1711187, upload-time = "2026-02-02T02:21:19.621Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/2b/84dd3b275da588a7c344def522c15d9d289b4f61b8e6b439b48ad6bc01c2/wujihandpy-1.8.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:ec8ddeab6542a1a1988fdc5160b727de0191df308890b105894228a7028cafe6", size = 1842097, upload-time = "2026-06-10T08:09:34.553Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/df/f709a9cfc0a4b8e95ab84de20f88e64d46b0d17d3ef3d4d338ebc7bc4618/wujihandpy-1.8.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:d7f15fecec5f2dbeb2e50896377716498d604859c5717f115d8b23d526a3e93c", size = 1845970, upload-time = "2026-06-10T08:09:40.437Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/01/ac12610614487c0a9477ed5e11c0f77f4983a08fc5add8e308c9def646f6/wujihandpy-1.8.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:f94a4fb77806460358625384cd8bb6259b26e08c4054596373b1ab57cf119b75", size = 1846071, upload-time = "2026-06-10T08:09:45.702Z" },
 ]
 
 [[package]]
