@@ -3,16 +3,11 @@
 # Copyright 2026 Wuji Technology Co., Ltd. Apache-2.0.
 """Task-owned reset and randomization through declared Entity capabilities."""
 
-from importlib import import_module
-from typing import Any
-
 import numpy as np
 from unilab.managers import ManagerTermBase
 
 from .commands import task
 from .math import multiply, random_quaternions, soft_limits
-
-mujoco: Any = import_module("mujoco")
 
 
 class ResetWuji(ManagerTermBase):
@@ -75,7 +70,6 @@ class FixedRandomization(ManagerTermBase):
         super().__init__(env)
         self.robot = env.scene["robot"]
         self.cube = env.scene["object"]
-        model = mujoco.MjModel.from_xml_path(str(env.cfg.scene.model_file))
         self.bindings = {}
         self.samples = {}
         self.ratios = {}
@@ -122,9 +116,7 @@ class FixedRandomization(ManagerTermBase):
         )
         self.bindings["cube_inertia"] = (
             o,
-            *o.bind_body_inertia_write(
-                default=model.body_inertia, default_mass=model.body_mass, term_name=term
-            ),
+            *o.bind_body_inertia_write(term_name=term),
             o.write_body_inertia_to_sim,
             "body_ids",
         )
@@ -142,9 +134,7 @@ class FixedRandomization(ManagerTermBase):
         )
         self.bindings["hand_inertia"] = (
             r,
-            *r.bind_body_inertia_write(
-                hand_ids, default=model.body_inertia, default_mass=model.body_mass, term_name=term
-            ),
+            *r.bind_body_inertia_write(hand_ids, term_name=term),
             r.write_body_inertia_to_sim,
             "body_ids",
         )
