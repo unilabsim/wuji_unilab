@@ -66,6 +66,16 @@ class ReorientCommand(CommandTerm):
             "in_success_window": np.zeros(env.num_envs, dtype=np.float32),
             "window_timer": np.zeros(env.num_envs, dtype=np.float32),
         }
+        # Pose reads are shared by termination, rewards, observations and
+        # metrics within one control step.  The Wuji step events only add cube
+        # velocity; reset is the only path that changes these poses outside a
+        # control-step counter, so a full-batch step cache is safe here.
+        self._pose_step = -1
+        self._tag_step = -1
+        self._palm_pos = np.zeros((env.num_envs, 3), dtype=np.float32)
+        self._palm_quat = np.zeros((env.num_envs, 4), dtype=np.float32)
+        self._tag_pos = np.zeros((env.num_envs, 3), dtype=np.float32)
+        self._tag_quat = np.zeros((env.num_envs, 4), dtype=np.float32)
 
     @property
     def command(self):
@@ -78,16 +88,26 @@ class ReorientCommand(CommandTerm):
         return goal_overlay_getter_for_command(self)
 
     def palm_pose(self):
-        return (
-            self.robot.data.body_link_pos_w[:, self.palm_id],
-            self.robot.data.body_link_quat_w[:, self.palm_id],
-        )
+        if self._pose_step != self._env.common_step_counter:
+            self._palm_pos[...] = self.robot.data.body_link_pos_w[:, self.palm_id]
+            self._palm_quat[...] = self.robot.data.body_link_quat_w[:, self.palm_id]
+            self._pose_step = self._env.common_step_counter
+        return self._palm_pos, self._palm_quat
 
     def tag_pose(self):
-        p, q = self.palm_pose()
-        tag_q = multiply(q, np.array([2**-0.5, 0, 2**-0.5, 0], dtype=np.float32))
-        tag_p = p + rotate(q, np.array([0.0262, 0, -0.0563], dtype=np.float32))
-        return tag_p, tag_q
+        if self._tag_step != self._env.common_step_counter:
+            p, q = self.palm_pose()
+            self._tag_quat[...] = multiply(
+                q, np.array([2**-0.5, 0, 2**-0.5, 0], dtype=np.float32)
+            )
+            self._tag_pos[...] = p + rotate(
+                q, np.array([0.0262, 0, -0.0563], dtype=np.float32)
+            )
+            self._tag_step = self._env.common_step_counter
+        return (
+            self._tag_pos,
+            self._tag_quat,
+        )
 
     def cube_tag(self):
         p, q = self.tag_pose()
@@ -150,6 +170,8 @@ class ReorientCommand(CommandTerm):
         self.outside[env_ids] = False
         self.perturbation[env_ids] = 0
         self.force_direction[env_ids] = 0
+        self._pose_step = -1
+        self._tag_step = -1
         return extras
 
 
