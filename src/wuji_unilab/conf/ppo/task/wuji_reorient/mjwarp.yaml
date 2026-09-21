@@ -435,8 +435,10 @@ algo:
   experiment_name: wuji_reorient
   runtime_resolver: wuji_unilab.rl.runtime:resolve_runtime
   obs_groups:
+    default:
+    - actor
     actor:
-    - policy
+    - actor
     critic:
     - critic
   actor:

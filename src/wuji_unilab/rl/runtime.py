@@ -4,14 +4,31 @@ from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
+from tensordict import TensorDict
 from uni_rl.algos.rsl_rl import RslRlVecEnvWrapper
 from uni_rl.algos.rsl_rl_runtime import RslRlPPORuntime
 from uni_rl.algos.rsl_rl_training_state import TrainingStateOnPolicyRunner
+from uni_rl.utils.tensor import to_torch
 
 from wuji_unilab.tasks.reorient.commands import task
 
 
 class WujiWrapper(RslRlVecEnvWrapper):
+    def _obs_to_tensordict(self, obs: dict[str, Any], info: dict[str, Any] | None = None) -> TensorDict:
+        """Adapt UniLab's flat groups without the legacy policy alias.
+
+        UniLab exposes a flat policy group as ``obs["obs"]``.  Upstream also
+        aliases it as the RSL-RL legacy ``policy`` key.  The task's RSL-RL actor
+        group is ``actor``; keeping the alias would allocate and mini-batch a
+        second 207-wide buffer on every rollout/update without a reader.
+        """
+        del info
+        actor_obs = self._policy_obs(obs)
+        td_dict: dict[str, Any] = {"actor": actor_obs}
+        if "critic" in obs:
+            td_dict["critic"] = to_torch(obs["critic"], self.device)
+        return TensorDict(td_dict, batch_size=self.num_envs, device=self.device)
+
     def export_training_state(self) -> Mapping[str, Any]:
         state = task(self.env)
         return {
