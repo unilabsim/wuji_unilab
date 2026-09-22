@@ -14,3 +14,4 @@ artifacts/
 htmlcov/
 MUJOCO_LOG.TXT
 train_rsl_rl.log
+third_party

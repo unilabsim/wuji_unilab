@@ -33,6 +33,19 @@ def _run(mode):
     if mode == "play":
         generated += ["training.play_only=true"]
     sys.argv = ["wuji-" + mode, "--config-dir", str(CONF_ROOT), *generated, *overrides]
+
+    # UniLab 1.3.2 dropped the uni_rl runtime_resolver hook; its train script
+    # from-imports rsl_rl's runner and the unilab.rl adapter at module load.
+    # Pre-bind the Wuji curriculum wrapper/runner in those namespaces so the
+    # runpy-executed module (and the playback session, which resolves the same
+    # names lazily) picks up the Wuji pair consistently.
+    import rsl_rl.runners
+    import unilab.rl
+
+    from wuji_unilab.rl.runtime import WujiOnPolicyRunner, WujiWrapper
+
+    unilab.rl.RslRlVecEnvAdapter = WujiWrapper
+    rsl_rl.runners.OnPolicyRunner = WujiOnPolicyRunner
     runpy.run_module("unilab.scripts.train_rsl_rl", run_name="__main__")
 
 

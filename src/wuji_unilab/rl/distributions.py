@@ -10,10 +10,22 @@ from rsl_rl.modules.distribution import HeteroscedasticGaussianDistribution
 
 
 class SoftplusGaussianDistribution(HeteroscedasticGaussianDistribution):
-    def __init__(self, output_dim: int, init_std: float = 0.5, min_std: float = 0.2):
+    def __init__(
+        self,
+        output_dim: int,
+        init_std: float = 0.5,
+        min_std: float = 0.2,
+        std_type: str = "scalar",
+    ):
+        # UniLab's base PPO config merges a default std_type into distribution_cfg;
+        # the softplus parameterization is defined in scalar space only.
+        if std_type != "scalar":
+            raise ValueError(
+                f"SoftplusGaussianDistribution requires std_type='scalar', got {std_type!r}"
+            )
         if not 0 <= min_std < init_std or not math.isfinite(init_std):
             raise ValueError("Require finite init_std > min_std >= 0")
-        super().__init__(output_dim, math.log(math.expm1(init_std - min_std)), std_type="scalar")
+        super().__init__(output_dim, math.log(math.expm1(init_std - min_std)), std_type=std_type)
         self.min_std = min_std
 
     def update(self, output: torch.Tensor):

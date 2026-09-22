@@ -433,7 +433,6 @@ algo:
   save_interval: 50
   seed: 42
   experiment_name: wuji_reorient
-  runtime_resolver: wuji_unilab.rl.runtime:resolve_runtime
   obs_groups:
     default:
     - actor
@@ -463,7 +462,7 @@ algo:
     activation: elu
     obs_normalization: true
   algorithm:
-    class_name: uni_rl.algos.rsl_rl_ppo:FinalObservationAwarePPO
+    class_name: rsl_rl.algorithms:PPO
     value_loss_coef: 0.5
     use_clipped_value_loss: false
     clip_param: 0.2
@@ -475,7 +474,6 @@ algo:
     gamma: 0.99
     lam: 0.95
     max_grad_norm: 1
-    disable_finite_checks: false
 training:
   task_name: WujiHand_Reorient
   sim_backend: mjwarp

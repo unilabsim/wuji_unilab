@@ -11,8 +11,6 @@ from typing import Any, cast
 import numpy as np
 import torch
 import warp as wp
-from uni_rl.algos.rsl_rl import normalize_ppo_train_cfg
-from uni_rl.algos.rsl_rl_training_state import TrainingStateOnPolicyRunner
 from unilab.base import registry
 from unilab.base.config_adapter import BackendAdapter
 from unilab.envs import ManagerBasedRlEnv
@@ -21,7 +19,7 @@ from unilab.visualization.playback_session import SnapshotPlaybackSession
 from unisim.backend.base import CameraCfg
 
 from wuji_unilab.config import compose_task
-from wuji_unilab.rl.runtime import WujiWrapper
+from wuji_unilab.rl.runtime import WujiOnPolicyRunner, WujiWrapper
 from wuji_unilab.tasks.reorient.commands import task
 from wuji_unilab.tasks.reorient.math import angle_error, random_quaternions
 from wuji_unilab.tasks.reorient.overlay import goal_overlay_getter
@@ -166,9 +164,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         if args.record:
             _require_record_capabilities(env)
             session = SnapshotPlaybackSession(env, overlay_getter=goal_overlay_getter(env))
-        runner = TrainingStateOnPolicyRunner(
-            wrapper, normalize_ppo_train_cfg(algo_config_dict(cfg)), device="cuda:0"
-        )
+        runner = WujiOnPolicyRunner(wrapper, algo_config_dict(cfg), device="cuda:0")
         runner.load(str(args.checkpoint_file), map_location="cuda:0")
         policy = runner.get_inference_policy(device="cuda:0")
         obs, _ = wrapper.reset()

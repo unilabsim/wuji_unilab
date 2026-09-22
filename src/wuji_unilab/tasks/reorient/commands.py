@@ -97,12 +97,8 @@ class ReorientCommand(CommandTerm):
     def tag_pose(self):
         if self._tag_step != self._env.common_step_counter:
             p, q = self.palm_pose()
-            self._tag_quat[...] = multiply(
-                q, np.array([2**-0.5, 0, 2**-0.5, 0], dtype=np.float32)
-            )
-            self._tag_pos[...] = p + rotate(
-                q, np.array([0.0262, 0, -0.0563], dtype=np.float32)
-            )
+            self._tag_quat[...] = multiply(q, np.array([2**-0.5, 0, 2**-0.5, 0], dtype=np.float32))
+            self._tag_pos[...] = p + rotate(q, np.array([0.0262, 0, -0.0563], dtype=np.float32))
             self._tag_step = self._env.common_step_counter
         return (
             self._tag_pos,

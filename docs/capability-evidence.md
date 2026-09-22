@@ -83,7 +83,7 @@ or hardware control.
 | C08 post-substep sensor history | gap | Not used by the current Wuji reward; remains a general audit gap. |
 | C09 DR field mutation | implemented in UniSim PR #42 and #44 | Required geometry/contact/DOF writes and primitive bound recomputation; #44 fixes position-actuator gain signs in the reviewed non-main integration dependency. |
 | C10 fixed hand pose | implemented in UniSim #42 / UniLab #1540 | Selected-world mocap binding; no free-joint substitution. |
-| C14 curriculum resume | implemented in unilab-rl #17 / UniLab #1540 | Explicit versioned owner state; no silent restart. |
+| C14 curriculum resume | implemented in `wuji_unilab.rl.runtime.WujiOnPolicyRunner` (since UniLab 1.3.2; previously unilab-rl #17 / UniLab #1540) | Explicit versioned owner state; no silent restart. |
 | C15 RND wrapper | confirmed gap | Not a Wuji prerequisite; #17 provides the extension needed for a future owner adapter. |
 | C19 camera/terrain and C17 IK | audit-only gap | Not silently enabled or replaced; Wuji uses a flat, vector-observation task. |
 

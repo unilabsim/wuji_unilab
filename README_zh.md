@@ -2,7 +2,7 @@
 
 [中文](README_zh.md)
 
-Wuji Hand 五指灵巧手的立方体掌上重定向任务：策略控制 20 个手指关节，把掌中立方体连续转向随机目标姿态。本项目是 [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab) 该任务向 [UniLab](https://github.com/Motphys/UniLab) + [UniSim](https://github.com/unilabsim/unisim) MuJoCo-Warp（`mjwarp`）GPU 后端 + [unilab-rl](https://github.com/unilabsim/unilab_rl)（rsl-rl PPO）的迁移实现，机器人模型与纹理随仓库分发。
+Wuji Hand 五指灵巧手的立方体掌上重定向任务：策略控制 20 个手指关节，把掌中立方体连续转向随机目标姿态。本项目是 [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab) 该任务向 [UniLab](https://github.com/Motphys/UniLab) + [UniSim](https://github.com/unilabsim/unisim) MuJoCo-Warp（`mjwarp`）GPU 后端 + [rsl_rl](https://github.com/leggedrobotics/rsl_rl) PPO（UniLab 1.3.2 起直接基于 rsl-rl 训练，不再经过 unilab-rl）的迁移实现，机器人模型与纹理随仓库分发。
 
 ![Wuji Hand 立方体重定向回放](docs/assets/wuji_reorient_play.gif)
 
@@ -33,7 +33,7 @@ uv run --no-sync wuji-assets       # 校验随仓库分发的资产
 uv run --no-sync wuji-list-envs    # 列出任务
 ```
 
-依赖全部由锁文件从 PyPI 解析（UniLab 1.2.0、UniSim 1.2.0、unilab-rl 1.2.0），无需单独克隆 UniLab；本仓库本身以源码安装，不发布 PyPI 包。仓库不分发训练好的 checkpoint，下面训练一节会得到自己的 checkpoint。
+依赖全部由锁文件从 PyPI 解析（UniLab 1.3.2、UniSim 1.7.4、rsl-rl 5.5.1），无需单独克隆 UniLab；本仓库本身以源码安装，不发布 PyPI 包。仓库不分发训练好的 checkpoint，下面训练一节会得到自己的 checkpoint。
 
 ## 训练与评估
 
@@ -81,6 +81,6 @@ uv run --no-sync wuji-export --checkpoint-file logs/.../model_4999.pt
 
 ## 来源与致谢
 
-任务、模型资产与奖励语义来自 [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab)（Wuji Technology），引用本工作时请同时引用上游。基础设施由 [UniLab](https://github.com/Motphys/UniLab)、[UniSim](https://github.com/unilabsim/unisim)、[unilab-rl](https://github.com/unilabsim/unilab_rl)（基于 [rsl_rl](https://github.com/leggedrobotics/rsl_rl)）和 [mujoco-warp](https://github.com/google-deepmind/mujoco_warp) 提供。
+任务、模型资产与奖励语义来自 [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab)（Wuji Technology），引用本工作时请同时引用上游。基础设施由 [UniLab](https://github.com/Motphys/UniLab)、[UniSim](https://github.com/unilabsim/unisim)、[rsl_rl](https://github.com/leggedrobotics/rsl_rl) 和 [mujoco-warp](https://github.com/google-deepmind/mujoco_warp) 提供。
 
 本项目采用 [Apache-2.0](LICENSE) 许可。
