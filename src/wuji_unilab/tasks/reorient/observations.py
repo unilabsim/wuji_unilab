@@ -38,7 +38,7 @@ def feature(env, kind: str, injection_prob: float = 0.0):
         joints = read_plan.joint_tensor_view("robot").joint_pos
         joint = torch.clamp((joints - center) / half, -1.0, 1.0)
         if kind == "joint":
-            return joint
+            return joint + robot.data.encoder_bias_tensor.to(joints.device)
         return joint - torch.clamp((action.target - center) / half, -1.0, 1.0)
     if kind == "position":
         value = (

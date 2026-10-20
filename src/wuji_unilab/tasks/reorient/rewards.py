@@ -17,7 +17,7 @@ class CageDrop(ManagerTermBase):
 
     @property
     def tensor_body_names(self) -> tuple[str, ...]:
-        return self.state.tip_names
+        return self.state.robot.body_names
 
     @property
     def entity_name(self) -> str:
@@ -30,7 +30,7 @@ class CageDrop(ManagerTermBase):
     def __call__(self, env, margin: float = 0.01, max_outside_steps: int = 10):
         state = self.state
         p, q = state.palm_pose()
-        robot_bodies = env.scene.read_plan.body_tensor_view("robot", state.tip_names)
+        robot_bodies = env.scene.read_plan.body_tensor_view("robot", self.state.robot.body_names)
         cube = env.scene.read_plan.body_tensor_view("object", (state.cube_name,))
         local = rotate(conjugate(q)[:, None, :], robot_bodies.pos_w - p[:, None, :])
         cube_local = rotate(conjugate(q), cube.pos_w[:, 0] - p)
@@ -44,7 +44,7 @@ class CageDrop(ManagerTermBase):
         state.cage_counter.copy_(
             torch.clamp(state.cage_counter + torch.where(state.outside, 1.0, -0.5), 0.0, 15.0)
         )
-        return state.cage_counter >= max_outside_steps
+        return state.cage_counter > max_outside_steps
 
 
 def reward(env, kind: str):
@@ -106,8 +106,9 @@ class SensorFeatureReward(ManagerTermBase):
             return torch.square(force / state.actuator_force_limits).sum(dim=-1)
         if self.kind == "tip_slide":
             velocity = state.sensor_values("tip_velocity").reshape(self.num_envs, 5, 3)
-            rel = velocity - state.cube_velocity()[:, None, :]
-            return torch.linalg.vector_norm(rel, dim=-1).sum(dim=-1)
+            relative_velocity = velocity - state.cube_velocity()[:, None, :]
+            contact = state.sensor_values("tips_found") > 0
+            return (torch.linalg.vector_norm(relative_velocity, dim=-1) * contact).sum(dim=-1)
         if self.kind == "finger_collision":
             return (state.sensor_values("self_found") > 0).float().sum(dim=-1)
         return (

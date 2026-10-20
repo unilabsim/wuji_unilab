@@ -80,7 +80,7 @@ class FixedRandomization(ManagerTermBase):
         self.ratios = {}
         term = "wuji_randomize"
         r, o = self.robot, self.cube
-        capsule_ids = r.find_geoms("robot/right_finger[1-5]_link2_col")[0]
+        capsule_ids = r.find_geoms("robot/right_finger[1-5]_link[23]_col")[0]
         hand_ids = r.find_bodies("robot/.*")[0]
         self.bindings["friction"] = (
             r,
