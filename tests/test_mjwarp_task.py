@@ -39,7 +39,7 @@ def test_full_randomization_step_and_partial_reset_isolation(env):
         "in_success_window",
         "window_timer",
     }
-    assert env.obs_groups_spec == {"obs": 69, "critic": 165}
+    assert env.obs_groups_spec == {"obs": 207, "critic": 413}
     assert bool(torch.any(torch.abs(state.dr_ratios - 1) > 0.01))
     for _ in range(12):
         result = env.step(torch.zeros((4, 20), dtype=torch.float32, device=env.device))
