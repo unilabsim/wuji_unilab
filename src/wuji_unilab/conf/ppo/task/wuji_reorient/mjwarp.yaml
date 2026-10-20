@@ -116,7 +116,6 @@ env:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: joint
-          history_length: 3
           noise:
             _target_: unilab.managers._noise.UniformNoiseCfg
             n_min: -0.06
@@ -125,13 +124,11 @@ env:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: target_error
-          history_length: 3
         position:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: position
             injection_prob: 0.02
-          history_length: 3
           noise:
             _target_: unilab.managers._noise.UniformNoiseCfg
             n_min: -0.008
@@ -141,7 +138,6 @@ env:
           params:
             kind: orientation
             injection_prob: 0.02
-          history_length: 3
           noise:
             _target_: unilab.managers._noise.GaussianNoiseCfg
             std: 0.05
@@ -149,7 +145,6 @@ env:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: action
-          history_length: 3
     critic:
       enable_corruption: false
       terms:
@@ -157,42 +152,32 @@ env:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: joint
-          history_length: 3
         target_error:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: target_error
-          history_length: 3
         position:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: position
-          history_length: 3
         orientation:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: orientation
-          history_length: 3
         action:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: action
-          history_length: 3
         qpos:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: qpos
-          history_length: 3
         qvel:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: qvel
-          history_length: 3
         tips:
-          func: wuji_unilab.tasks.reorient.observations.feature
-          params:
-            kind: tips
-          history_length: 3
+          func: wuji_unilab.tasks.reorient.observations.TipsFeature
           scale: 5
         clean_position:
           func: wuji_unilab.tasks.reorient.observations.feature
@@ -207,9 +192,7 @@ env:
           params:
             kind: linvel
         clean_angvel:
-          func: wuji_unilab.tasks.reorient.observations.feature
-          params:
-            kind: angvel
+          func: wuji_unilab.tasks.reorient.observations.CubeAngularVelocityFeature
         clean_force_direction:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
@@ -231,9 +214,7 @@ env:
           params:
             kind: dr
         clean_palm:
-          func: wuji_unilab.tasks.reorient.observations.feature
-          params:
-            kind: palm
+          func: wuji_unilab.tasks.reorient.observations.PalmFeature
   actions:
     joint_pos:
       _target_: wuji_unilab.tasks.reorient.actions.WujiActionCfg
@@ -505,12 +486,12 @@ reward:
     params:
       kind: action_rate
   torque:
-    func: wuji_unilab.tasks.reorient.rewards.reward
+    func: wuji_unilab.tasks.reorient.rewards.SensorFeatureReward
     weight: -24
     params:
       kind: torque
   tip_slide:
-    func: wuji_unilab.tasks.reorient.rewards.reward
+    func: wuji_unilab.tasks.reorient.rewards.SensorFeatureReward
     weight: -0.3
     params:
       kind: tip_slide
@@ -520,7 +501,7 @@ reward:
     params:
       kind: cage_escape
   finger_collision:
-    func: wuji_unilab.tasks.reorient.rewards.reward
+    func: wuji_unilab.tasks.reorient.rewards.SensorFeatureReward
     weight: -1
     params:
       kind: finger_collision
@@ -530,7 +511,7 @@ reward:
     params:
       kind: hold_escalation
   palm_detach:
-    func: wuji_unilab.tasks.reorient.rewards.reward
+    func: wuji_unilab.tasks.reorient.rewards.SensorFeatureReward
     weight: 0.5
     params:
       kind: palm_detach

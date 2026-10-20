@@ -32,7 +32,7 @@ GOAL_FRAME_AXIS_LENGTH = 0.05
 
 def goal_pose_world(state: ReorientCommand) -> tuple[np.ndarray, np.ndarray]:
     """Return the per-env world-frame goal cube pose ``(pos, quat_wxyz)``."""
-    cube_pos = np.asarray(state.cube.data.root_link_pos_w, dtype=np.float64)
+    cube_pos = np.asarray(state.cube_position(), dtype=np.float64)
     _, tag_quat = state.tag_pose()
     goal_quat = multiply(
         np.asarray(tag_quat, dtype=np.float64), np.asarray(state.goal, dtype=np.float64)

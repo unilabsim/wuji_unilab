@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import torch
 from scipy.spatial.transform import Rotation
 
 from wuji_unilab.tasks.reorient.actions import WujiAction, WujiActionCfg
@@ -31,8 +32,10 @@ def test_rotations_agree_with_independent_scipy_convention():
 def test_warmup_clipping_smoothing_and_selected_reset():
     robot = SimpleNamespace(
         data=SimpleNamespace(
-            default_joint_pos=np.zeros((2, 20), np.float32),
-            soft_joint_pos_limits=np.tile([-1, 1], (20, 1)),
+            default_joint_pos=lambda device: torch.zeros((20,), dtype=torch.float32),
+            soft_joint_pos_limits=lambda device: torch.tile(
+                torch.tensor([-1, 1], dtype=torch.float32), (20, 1)
+            ),
         )
     )
     env = SimpleNamespace(
@@ -40,10 +43,10 @@ def test_warmup_clipping_smoothing_and_selected_reset():
     )
     action = WujiAction(WujiActionCfg(entity_name="robot"), env)
     action.process_actions(np.full((2, 20), 5, np.float32))
-    np.testing.assert_allclose(action.target[0], 0)
-    np.testing.assert_allclose(action.target[1], 0.25)
-    assert np.all(action.raw == 5)
+    torch.testing.assert_close(action.target[0], torch.zeros(20))
+    torch.testing.assert_close(action.target[1], torch.full((20,), 0.25))
+    assert bool(torch.all(action.raw == 5))
     action.process_actions(np.full((2, 20), 5, np.float32))
-    np.testing.assert_allclose(action.target[1], 0.375)
+    torch.testing.assert_close(action.target[1], torch.full((20,), 0.375))
     action.reset(np.array([0]))
-    np.testing.assert_allclose(action.target[1], 0.375)
+    torch.testing.assert_close(action.target[1], torch.full((20,), 0.375))

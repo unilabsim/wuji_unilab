@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from hydra import compose, initialize_config_dir
-from unilab.base.config_adapter import BackendAdapter
+from unilab.base.config_adapter import EnvConfigAdapter
 from unilab.cli import package_root
 
 from wuji_unilab.tasks.reorient import register_resolvers
@@ -31,4 +31,4 @@ def compose_task(task="WujiHand_Reorient", overrides=()):
 
 
 def env_overrides(cfg):
-    return BackendAdapter(cfg, root_dir=Path.cwd(), algo_name="ppo").build_task_env_cfg_override()
+    return EnvConfigAdapter(cfg, root_dir=Path.cwd(), algo_name="ppo").build_task_env_cfg_override()

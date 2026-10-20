@@ -11,10 +11,9 @@ from wuji_unilab.tasks.reorient.math import multiply
 
 
 def _fake_env(num_envs, cube_pos, tag_quat, goal):
+    cube_pos = np.asarray(cube_pos, dtype=np.float32)
     state = SimpleNamespace(
-        cube=SimpleNamespace(
-            data=SimpleNamespace(root_link_pos_w=np.asarray(cube_pos, dtype=np.float32))
-        ),
+        cube_position=lambda: cube_pos,
         goal=np.asarray(goal, dtype=np.float32),
         tag_pose=lambda: (
             np.zeros((num_envs, 3), dtype=np.float32),
@@ -70,7 +69,7 @@ def test_goal_overlay_reflects_live_state_between_calls():
     env, state = _fake_env(1, [[0.0, 0.0, 0.5]], [[1.0, 0.0, 0.0, 0.0]], [[1.0, 0.0, 0.0, 0.0]])
     getter = overlay.goal_overlay_getter(env)
     first = getter()[0][0]
-    state.cube.data.root_link_pos_w[:] = [0.3, 0.0, 0.6]
+    state.cube_position()[:] = [0.3, 0.0, 0.6]
     state.goal[:] = [0.0, 1.0, 0.0, 0.0]
     second = getter()[0][0]
     assert second.pos == pytest.approx((0.3, 0.0, 0.6 + overlay.GOAL_VIS_Z_OFFSET))

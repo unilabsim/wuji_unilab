@@ -3,11 +3,19 @@
 # Copyright 2026 Wuji Technology Co., Ltd. Apache-2.0.
 """Task-owned reset and randomization through declared Entity capabilities."""
 
+import math
+
 import numpy as np
+import torch
 from unilab.managers import ManagerTermBase
+from unisim.dr.types import TensorResetRandomizationPayload
 
 from .commands import task
-from .math import multiply, random_quaternions, soft_limits
+from .math import torch_multiply, torch_random_quaternions, torch_soft_limits
+
+
+def _torch_uniform(rng, bounds, size, device):
+    return rng.uniform(bounds[0], bounds[1], size).to(device=device, dtype=torch.float32)
 
 
 class ResetWuji(ManagerTermBase):
@@ -15,68 +23,67 @@ class ResetWuji(ManagerTermBase):
         super().__init__(env)
         self.robot = env.scene["robot"]
         self.cube = env.scene["object"]
-        self.pose = self.robot.bind_mocap_pose_write(
-            "robot/right_palm_link", term_name="wuji_reset"
+        self.pose = self.robot._reset_state.bind_mocap_pose("robot/right_palm_link")
+        self.default_pose = torch.as_tensor(
+            np.asarray(self.pose.default_pose).copy(), device=env.device, dtype=torch.float32
         )
-        self.default = self.robot.data.default_joint_pos.copy()
-        self.limits = soft_limits(
-            self.robot.data.soft_joint_pos_limits, cfg.params["soft_limit_factor"]
+        self.default = self.robot.data.default_joint_pos(env.device)[0]
+        self.limits = torch_soft_limits(
+            self.robot.data.soft_joint_pos_limits(env.device),
+            cfg.params["soft_limit_factor"],
         )
         self.offset_ids = self.robot.find_joints("robot/right_finger[1-5]_joint[134]")[0]
 
-    def __call__(
+    def reset(
         self,
         env,
-        env_ids,
+        reset_mask: torch.Tensor,
         soft_limit_factor: float,
         joint_noise: tuple,
         cube_noise: float,
         wrist_pitch: tuple,
     ):
         del soft_limit_factor
-        ids = np.arange(env.num_envs) if env_ids is None else env_ids
-        if not len(ids):
-            return
-        joint = self.default[ids].copy()
-        joint[:, self.offset_ids] += env.rng.uniform(
-            *joint_noise, size=(len(ids), len(self.offset_ids))
+        joint = self.default.repeat(env.num_envs, 1)
+        selected = torch.tensor(self.offset_ids, device=joint.device, dtype=torch.long)
+        joint[:, selected] += _torch_uniform(
+            env.rng, joint_noise, (env.num_envs, selected.numel()), env.device
         )
-        joint = np.clip(joint, self.limits[:, 0], self.limits[:, 1])
-        self.robot.write_joint_state_to_sim(joint, np.zeros_like(joint), env_ids=ids)
-        poses = np.tile(self.pose, (len(ids), 1))
-        angle = env.rng.uniform(*wrist_pitch, len(ids))
-        rotation = np.stack(
-            (np.cos(angle / 2), np.zeros(len(ids)), np.sin(angle / 2), np.zeros(len(ids))), axis=-1
+        joint = torch.clamp(joint, self.limits[None, :, 0], self.limits[None, :, 1])
+        self.robot.write_joint_state_to_sim_mask(joint, torch.zeros_like(joint), reset_mask)
+        poses = self.default_pose.repeat(env.num_envs, 1)
+        angle = _torch_uniform(env.rng, wrist_pitch, (env.num_envs,), env.device)
+        zeros = torch.zeros_like(angle)
+        rotation = torch.stack((torch.cos(angle / 2), zeros, torch.sin(angle / 2), zeros), dim=-1)
+        poses[:, 3:] = torch_multiply(poses[:, 3:], rotation)
+        # MJWarp 2.0's device-resident packed reset does not yet implement the
+        # `packed_reset_mocap` contract. Publish through the backend's selected-row
+        # binding instead of violating the Manager transaction fail-closed check.
+        rows = reset_mask.detach().cpu().nonzero(as_tuple=False).flatten().numpy()
+        self.pose.write(rows, poses.detach().cpu().numpy()[rows])
+        state = self.cube.data.default_root_state(env.device).clone()
+        state[:, :3] += _torch_uniform(
+            env.rng, (-cube_noise, cube_noise), (env.num_envs, 3), env.device
         )
-        poses[:, 3:] = multiply(poses[:, 3:], rotation)
-        self.robot.write_mocap_pose_to_sim(
-            poses.astype(np.float32), env_ids=ids, term_name="wuji_reset"
-        )
-        state = self.cube.data.default_root_state[ids].copy()
-        state[:, :3] += env.rng.uniform(-cube_noise, cube_noise, (len(ids), 3))
-        state[:, 3:7] = random_quaternions(env.rng, len(ids))
+        state[:, 3:7] = torch_random_quaternions(env.rng, env.num_envs, device=env.device)
         state[:, 7:] = 0
-        self.cube.write_root_state_to_sim(state, env_ids=ids)
+        self.cube.write_root_state_tensor_to_sim(state, reset_mask)
 
 
 class FixedRandomization(ManagerTermBase):
-    """Sample per-world parameters once, then replay them on selected resets.
-
-    Cached values are the values written to the backend, not inferred defaults.
-    The cache is also the critic DR information owner.
-    """
+    """Sample per-world parameters once, then replay them on selected resets."""
 
     def __init__(self, cfg, env):
         super().__init__(env)
         self.robot = env.scene["robot"]
         self.cube = env.scene["object"]
+        self.device = env.device
         self.bindings = {}
         self.samples = {}
         self.ratios = {}
         term = "wuji_randomize"
-        # All resolution, XML inspection and default snapshots are cold-path.
         r, o = self.robot, self.cube
-        capsule_ids = r.find_geoms("robot/right_finger[1-5]_link[23]_col")[0]
+        capsule_ids = r.find_geoms("robot/right_finger[1-5]_link2_col")[0]
         hand_ids = r.find_bodies("robot/.*")[0]
         self.bindings["friction"] = (
             r,
@@ -158,61 +165,125 @@ class FixedRandomization(ManagerTermBase):
         )
         self.gain_ids, self.kp, self.kd = r.bind_actuator_gain_write(term_name=term)
 
-    def __call__(self, env, env_ids, ranges: dict, total_steps: int):
-        ids = np.arange(env.num_envs) if env_ids is None else env_ids
-        if not len(ids):
+    def _sample(self, env, name: str, default: torch.Tensor, ranges: dict):
+        # 1.4 model-field bindings return immutable one-row/default tables for
+        # NumPy-backed fields. They are model metadata, not per-environment state.
+        default = default[0] if default.ndim >= 3 else default
+        shape = (env.num_envs, *default.shape)
+        if name == "cube_inertia":
+            factor = self.ratios["cube_mass"][..., None]
+        elif name == "cube_com":
+            self.samples[name] = default + _torch_uniform(env.rng, ranges[name], shape, self.device)
             return
+        elif name in ("solref", "solimp"):
+            factor = torch.ones(shape, device=self.device)
+            for component, bounds in ranges[name].items():
+                factor[..., int(component)] = _torch_uniform(
+                    env.rng, bounds, shape[:-1], self.device
+                )
+        else:
+            bounds = ranges[name]
+            factor_shape = shape[:-1] if default.ndim == 3 else shape
+            if name == "damping":
+                factor = torch.exp(
+                    _torch_uniform(
+                        env.rng,
+                        (math.log(float(bounds[0])), math.log(float(bounds[1]))),
+                        factor_shape,
+                        self.device,
+                    )
+                )
+            else:
+                factor = _torch_uniform(env.rng, bounds, factor_shape, self.device)
+            self.ratios[name] = factor.reshape(env.num_envs, -1).float()
+            if default.ndim == 3:
+                factor = factor[..., None]
+        self.samples[name] = default * factor
+
+    def reset(self, env, reset_mask: torch.Tensor, ranges: dict, total_steps: int):
+        del total_steps
         if not self.samples:
             for name, (_, _, default, _, _) in self.bindings.items():
-                shape = (env.num_envs, *default.shape)
-                if name == "cube_inertia":
-                    factor = self.ratios["cube_mass"][..., None]
-                elif name == "cube_com":
-                    self.samples[name] = default[None] + env.rng.uniform(*ranges[name], size=shape)
-                    continue
-                elif name in ("solref", "solimp"):
-                    factor = np.ones(shape, dtype=np.float32)
-                    for component, bounds in ranges[name].items():
-                        factor[..., int(component)] = env.rng.uniform(*bounds, size=shape[:-1])
-                else:
-                    bounds = ranges[name]
-                    factor_shape = shape[:-1] if default.ndim == 2 else shape
-                    if name == "damping":
-                        factor = np.exp(
-                            env.rng.uniform(np.log(bounds[0]), np.log(bounds[1]), size=factor_shape)
-                        )
-                    else:
-                        factor = env.rng.uniform(*bounds, size=factor_shape)
-                    self.ratios[name] = np.asarray(factor, dtype=np.float32)
-                    if default.ndim == 2:
-                        factor = factor[..., None]
-                self.samples[name] = np.asarray(default[None] * factor, dtype=np.float32)
-            for name, default in (("kp", self.kp), ("kd", self.kd)):
-                lo, hi = ranges[name]
-                scale = np.exp(
-                    env.rng.uniform(np.log(lo), np.log(hi), size=(env.num_envs, default.size))
+                self._sample(
+                    env, name, torch.as_tensor(np.asarray(default).copy(), device=self.device), ranges
                 )
-                self.ratios[name] = scale.astype(np.float32)
-                self.samples[name] = (default[None] * scale).astype(np.float32)
-            self.samples["encoder"] = env.rng.uniform(
-                *ranges["encoder"], size=self.robot.data.joint_pos.shape
-            ).astype(np.float32)
-        for name, (_, local_ids, _, write, selector) in self.bindings.items():
-            values = self.samples[name][ids]
-            write(values, env_ids=ids, term_name="wuji_randomize", **{selector: local_ids})
+            for name, default in (("kp", self.kp), ("kd", self.kd)):
+                default = default.to(self.device)
+                lo, hi = ranges[name]
+                scale = torch.exp(
+                    _torch_uniform(
+                        env.rng,
+                        (torch.log(torch.as_tensor(lo)), torch.log(torch.as_tensor(hi))),
+                        (env.num_envs, default.shape[-1]),
+                        self.device,
+                    )
+                )
+                self.ratios[name] = scale.reshape(env.num_envs, -1)
+                self.samples[name] = default * scale
+            self.samples["encoder"] = _torch_uniform(
+                env.rng, ranges["encoder"], (env.num_envs, self.robot.num_joints), self.device
+            )
+
+        values = {}
+        for name, (_, _, _, _, _) in self.bindings.items():
+            values[name] = self.samples[name]
+
+        selected_ids = reset_mask.nonzero(as_tuple=False).flatten()
+        selected_rows = {
+            name: value[selected_ids]
+            for name, value in values.items()
+        }
+        packed_transaction = self.robot._reset_state._require_packed_transaction()
+        backend = packed_transaction.backend
+        # Compose each field into the active transaction. Geom sizes are the one
+        # MJWarp host-only DR field (derived bounds require `set_const`), so
+        # publish its selected rows through the public host-plane reset payload.
+        for name, (_, model_ids, _, write, selector) in self.bindings.items():
+            if name in ("hand_size", "cube_size"):
+                rows_cpu = selected_ids.detach().cpu()
+                full = self.samples[name].to(device="cpu", dtype=torch.float32)
+                selected_sizes = full[rows_cpu].numpy()
+                owner = self.robot if name == "hand_size" else self.cube
+                local_ids = np.asarray(model_ids, dtype=np.intp)
+                backend_columns = np.asarray(owner._geom_ids, dtype=np.intp)[local_ids]
+                host_sizes = backend._dr_geom_size.copy()
+                host_sizes[np.ix_(rows_cpu.numpy(), backend_columns)] = selected_sizes
+                updates = backend._prepare_reset_randomization(
+                    np.arange(env.num_envs),
+                    TensorResetRandomizationPayload(geom_size=torch.from_numpy(host_sizes)),
+                )
+                backend._apply_model_updates(updates)
+                continue
+            if name != "cube_size":
+                write(
+                    selected_rows[name],
+                    env_ids=selected_ids,
+                    **{selector: model_ids},
+                    term_name="wuji_randomize",
+                )
+
+        # `write_actuator_gains_tensor_mask` publishes a full-width table and
+        # therefore requires the exact transaction mask. In an event reset that
+        # mask is subset-only, so use the selected-row facade instead.
         self.robot.write_actuator_gains_to_sim(
-            self.samples["kp"][ids],
-            self.samples["kd"][ids],
+            self.samples["kp"][selected_ids],
+            self.samples["kd"][selected_ids],
             actuator_ids=self.gain_ids,
-            env_ids=ids,
+            env_ids=selected_ids,
             term_name="wuji_randomize",
         )
-        self.robot.data.encoder_bias[ids] = self.samples["encoder"][ids]
-        values = [
-            self.ratios[name][ids].reshape(len(ids), -1).mean(axis=1)
-            for name in ("friction", "cube_mass", "kp", "kd", "damping", "cube_size")
-        ]
-        task(env).dr_ratios[ids] = np.stack(values, axis=-1)
+        columns = torch.arange(self.robot.num_joints, device=self.device)
+        self.robot.data.update_encoder_bias_tensor_mask(
+            reset_mask, columns, self.samples["encoder"]
+        )
+        ratios = torch.stack(
+            [
+                self.ratios[name].mean(dim=1)
+                for name in ("friction", "cube_mass", "kp", "kd", "damping", "cube_size")
+            ],
+            dim=-1,
+        )
+        task(env).dr_ratios.copy_(torch.where(reset_mask[:, None], ratios, task(env).dr_ratios))
 
 
 class VelocityDisturbance(ManagerTermBase):
@@ -221,21 +292,41 @@ class VelocityDisturbance(ManagerTermBase):
         self.cube = env.scene["object"]
         self.cube.bind_root_linear_velocity_delta(term_name="wuji_velocity_disturbance")
 
-    def __call__(self, env, env_ids, speed_range: tuple, min_episode_s: float, total_steps: int):
-        ids = np.arange(env.num_envs) if env_ids is None else env_ids
+    def __call__(
+        self,
+        env,
+        env_ids,
+        speed_range: tuple,
+        min_episode_s: float,
+        total_steps: int,
+    ):
         state = task(env)
-        state.perturbation[ids] = 0
-        state.force_direction[ids] = 0
-        ids = ids[env.episode_length_buf[ids] * env.step_dt >= min_episode_s]
-        if not len(ids):
+        mask = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+        if env_ids is not None:
+            mask = torch.zeros_like(mask)
+            mask[env_ids] = True
+        state.perturbation[mask] = 0
+        state.force_direction[mask] = 0
+        mask &= env.episode_length_buf * env.step_dt >= min_episode_s
+        if not bool(mask.any()):
             return
-        direction = env.rng.normal(size=(len(ids), 3))
-        direction /= np.maximum(np.linalg.norm(direction, axis=-1, keepdims=True), 1e-9)
-        progress = np.clip((env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0, 1)
+        direction = env.rng.normal(size=(int(mask.sum()), 3)).to(env.device)
+        direction = direction / torch.linalg.vector_norm(direction, dim=-1, keepdim=True).clamp_min(
+            1e-9
+        )
+        progress = torch.clamp(
+            (env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0.0, 1.0
+        )
         curr_max = speed_range[0] + (speed_range[1] - speed_range[0]) * progress * state.adaptive
-        speed = env.rng.uniform(speed_range[0], max(speed_range[0], curr_max), (len(ids), 1))
-        delta = np.asarray(direction * speed, dtype=np.float32)
-        self.cube.apply_root_linear_velocity_delta_to_sim(delta, env_ids=ids)
-        state.perturbation[ids, :3] = delta
-        state.perturbation[ids, 3:] = 0
-        state.force_direction[ids] = direction
+        speed = _torch_uniform(
+            env.rng,
+            (speed_range[0], torch.maximum(torch.tensor(speed_range[0]), curr_max)),
+            (int(mask.sum()), 1),
+            env.device,
+        )
+        delta = direction * speed
+        self.cube.apply_root_linear_velocity_delta_to_sim(delta, env_ids=mask.nonzero().flatten())
+        rows = mask.nonzero().flatten()
+        state.perturbation[rows, :3] = delta
+        state.perturbation[rows, 3:] = 0
+        state.force_direction[rows] = direction
