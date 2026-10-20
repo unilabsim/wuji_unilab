@@ -11,11 +11,11 @@ from unilab.base.entity import Entity
 from unilab.managers import CommandTerm, CommandTermCfg
 
 from .math import (
-    torch_angle_error,
-    torch_conjugate,
-    torch_multiply,
-    torch_random_quaternions,
-    torch_rotate,
+    angle_error,
+    conjugate,
+    multiply,
+    random_quaternions,
+    rotate,
 )
 from .scene import materialize_scene
 
@@ -124,13 +124,13 @@ class ReorientCommand(CommandTerm):
         self._pose_stale = True
         self._tag_stale = True
 
-    def _body_view(self, entity_name: str, body_names: tuple[str, ...]):
+    def body_state(self, entity_name: str, body_names: tuple[str, ...]):
         read_plan = getattr(self._env.scene, "read_plan", None)
         if read_plan is None:
             raise NotImplementedError("Wuji task requires the Manager packed tensor read plan")
         return read_plan.body_tensor_view(entity_name, body_names)
 
-    def _sensor_view(self, key: str) -> torch.Tensor:
+    def sensor_values(self, key: str) -> torch.Tensor:
         read_plan = getattr(self._env.scene, "read_plan", None)
         names = self.sensor_groups[key]
         if read_plan is None or not set(names).issubset(
@@ -145,7 +145,7 @@ class ReorientCommand(CommandTerm):
 
     def palm_pose(self):
         if getattr(self, "_pose_stale", True):
-            view = self._body_view("robot", (self.palm_name,))
+            view = self.body_state("robot", (self.palm_name,))
             self._palm_pos.copy_(view.pos_w[:, 0])
             self._palm_quat.copy_(view.quat_w[:, 0])
             self._pose_stale = False
@@ -154,28 +154,28 @@ class ReorientCommand(CommandTerm):
     def tag_pose(self):
         if getattr(self, "_tag_stale", True):
             p, q = self.palm_pose()
-            self._tag_quat.copy_(torch_multiply(q, self._tag_rotation))
-            self._tag_pos.copy_(p + torch_rotate(q, self._tag_offset.expand_as(p)))
+            self._tag_quat.copy_(multiply(q, self._tag_rotation))
+            self._tag_pos.copy_(p + rotate(q, self._tag_offset.expand_as(p)))
             self._tag_stale = False
         return self._tag_pos, self._tag_quat
 
     def cube_tag(self):
         p, q = self.tag_pose()
-        cube = self._body_view("object", (self.cube_name,))
-        inv = torch_conjugate(q)
+        cube = self.body_state("object", (self.cube_name,))
+        inv = conjugate(q)
         return (
-            torch_rotate(inv, cube.pos_w[:, 0] - p),
-            torch_multiply(inv, cube.quat_w[:, 0]),
+            rotate(inv, cube.pos_w[:, 0] - p),
+            multiply(inv, cube.quat_w[:, 0]),
         )
 
     def cube_position(self) -> torch.Tensor:
-        return self._body_view("object", (self.cube_name,)).pos_w[:, 0]
+        return self.body_state("object", (self.cube_name,)).pos_w[:, 0]
 
     def cube_velocity(self) -> torch.Tensor:
-        return self._body_view("object", (self.cube_name,)).lin_vel_w[:, 0]
+        return self.body_state("object", (self.cube_name,)).lin_vel_w[:, 0]
 
     def error(self):
-        return torch_angle_error(self.cube_tag()[1], self.goal)
+        return angle_error(self.cube_tag()[1], self.goal)
 
     def _update_metrics(self):
         self.metrics["goal_reach_count"].copy_(self.goal_count)
@@ -188,7 +188,7 @@ class ReorientCommand(CommandTerm):
         self.metrics["window_timer"].copy_(self.window)
 
     def _resample_command(self, reset_mask):
-        samples = torch_random_quaternions(self._rng, self.num_envs, device=self._device)
+        samples = random_quaternions(self._rng, self.num_envs, device=self._device)
         zeroed_counters = (
             self.hold,
             self.goal_timer,

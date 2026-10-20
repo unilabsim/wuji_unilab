@@ -7,7 +7,7 @@ import torch
 from unilab.managers import ManagerTermBase
 
 from .commands import task
-from .math import torch_conjugate, torch_rotate
+from .math import conjugate, rotate
 
 
 class CageDrop(ManagerTermBase):
@@ -32,8 +32,8 @@ class CageDrop(ManagerTermBase):
         p, q = state.palm_pose()
         robot_bodies = env.scene.read_plan.body_tensor_view("robot", state.tip_names)
         cube = env.scene.read_plan.body_tensor_view("object", (state.cube_name,))
-        local = torch_rotate(torch_conjugate(q)[:, None, :], robot_bodies.pos_w - p[:, None, :])
-        cube_local = torch_rotate(torch_conjugate(q), cube.pos_w[:, 0] - p)
+        local = rotate(conjugate(q)[:, None, :], robot_bodies.pos_w - p[:, None, :])
+        cube_local = rotate(conjugate(q), cube.pos_w[:, 0] - p)
         low = local.amin(dim=1) - torch.tensor(
             (margin, margin, margin), device=env.device, dtype=torch.float32
         )
@@ -50,7 +50,8 @@ class CageDrop(ManagerTermBase):
 def reward(env, kind: str):
     state = task(env)
     if kind in ("orientation", "orientation_alignment"):
-        return torch.clamp(1 - torch.maximum(state.error() - 0.2, torch.zeros_like(state.error())) / torch.pi, 0.0, 1.0)
+        excess_error = torch.maximum(state.error() - 0.2, torch.zeros_like(state.error()))
+        return torch.clamp(1 - excess_error / torch.pi, 0.0, 1.0)
     if kind == "hand_pose":
         joints = env.scene.read_plan.joint_tensor_view("robot")
         return torch.square(joints.joint_pos - state.robot.data.default_joint_pos(env.device)).sum(
@@ -66,7 +67,6 @@ def reward(env, kind: str):
     if kind in ("hold", "hold_escalation"):
         return ((state.window > 0) & state.within).float() * state.reward_timer
     raise ValueError(f"Unknown Wuji reward: {kind}")
-
 
 
 class SensorFeatureReward(ManagerTermBase):
@@ -102,19 +102,17 @@ class SensorFeatureReward(ManagerTermBase):
         del env, kwargs
         state = self.state
         if self.kind == "torque":
-            force = state._sensor_view("actuator_force")
+            force = state.sensor_values("actuator_force")
             return torch.square(force / state.actuator_force_limits).sum(dim=-1)
         if self.kind == "tip_slide":
-            velocity = state._sensor_view("tip_velocity").reshape(
-                self.num_envs, 5, 3
-            )
+            velocity = state.sensor_values("tip_velocity").reshape(self.num_envs, 5, 3)
             rel = velocity - state.cube_velocity()[:, None, :]
             return torch.linalg.vector_norm(rel, dim=-1).sum(dim=-1)
         if self.kind == "finger_collision":
-            return (state._sensor_view("self_found") > 0).float().sum(dim=-1)
+            return (state.sensor_values("self_found") > 0).float().sum(dim=-1)
         return (
-            (state._sensor_view("distal_found") > 0).any(dim=-1)
-            & ~(state._sensor_view("proximal_found") > 0).any(dim=-1)
+            (state.sensor_values("distal_found") > 0).any(dim=-1)
+            & ~(state.sensor_values("proximal_found") > 0).any(dim=-1)
         ).float()
 
 
@@ -140,12 +138,8 @@ def success_curriculum(
     has_reset_rows = bool(reset_mask.any())
     return {
         "value": state.difficulty,
-        "mean_goal_reach_count": float(goal_count[reset_mask].mean())
-        if has_reset_rows
-        else 0.0,
-        "success_env_frac": float(successes[reset_mask].float().mean())
-        if has_reset_rows
-        else 0.0,
+        "mean_goal_reach_count": float(goal_count[reset_mask].mean()) if has_reset_rows else 0.0,
+        "success_env_frac": float(successes[reset_mask].float().mean()) if has_reset_rows else 0.0,
         "delta": applied_delta,
     }
 
@@ -199,14 +193,14 @@ def metric(env, kind: str):
     if kind == "cube_survival_steps":
         return env.episode_length_buf.float()
     if kind in ("tips_contact", "fingertip_contact_count"):
-        return (state._sensor_view("tips_found") > 0).float().sum(dim=-1)
+        return (state.sensor_values("tips_found") > 0).float().sum(dim=-1)
     if kind in ("cage", "cage_escape_frequency"):
         return (state.cage_counter > 0).float()
     if kind in ("joint_velocity_rms", "joint_vel_rms"):
         joints = env.scene.read_plan.joint_tensor_view("robot").joint_vel
         return torch.sqrt(torch.square(joints).mean(dim=-1))
     if kind == "torque_rms":
-        force = state._sensor_view("actuator_force")
+        force = state.sensor_values("actuator_force")
         return torch.sqrt(torch.square(force).mean(dim=-1))
     if kind == "action_delta_rms":
         action = env.action_manager
@@ -215,7 +209,7 @@ def metric(env, kind: str):
     if kind in ("cube_height", "cube_height_above_palm"):
         p, q = state.palm_pose()
         cube = state.cube_tag()[0]
-        return torch_rotate(torch_conjugate(q), cube - p)[:, 2]
+        return rotate(conjugate(q), cube - p)[:, 2]
     if kind == "action_jerk_rms":
         action = env.action_manager
         jerk = action.action - 2 * action.prev_action + action.prev_prev_action
@@ -223,10 +217,10 @@ def metric(env, kind: str):
     if kind == "success_interval":
         return state.goal_timer.float()
     if kind == "torque_saturation_ratio":
-        force = torch.abs(state._sensor_view("actuator_force"))
+        force = torch.abs(state.sensor_values("actuator_force"))
         return (force >= 0.9 * state.actuator_force_limits).float().mean(dim=-1)
     if kind == "finger_collision_frequency":
-        found = state._sensor_view("self_found") > 0
+        found = state.sensor_values("self_found") > 0
         return found.any(dim=-1).float()
     if kind == "difficulty":
         return torch.full((env.num_envs,), state.difficulty, device=env.device)

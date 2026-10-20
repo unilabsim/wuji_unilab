@@ -68,13 +68,12 @@ def _copy_training_state(state: Mapping[str, Any]) -> dict[str, Any]:
 
 class WujiWrapper(RslRlVecEnvAdapter):
     def _obs_to_tensordict(self, obs: dict[str, Any]) -> TensorDict:
-        """Adapt UniLab's flat groups without the legacy policy alias.
+        """Publish the task's actor/critic groups without an unused alias.
 
         UniLab exposes a flat policy group as ``obs["obs"]``.  The upstream
-        adapter also aliases it as the RSL-RL legacy ``policy`` key.  The task's
-        RSL-RL actor group is ``actor``; keeping the alias would allocate and
-        mini-batch a second 207-wide buffer on every rollout/update without a
-        reader.
+        adapter also aliases it as ``policy``.  The task's RSL-RL actor group is
+        ``actor``; keeping that alias would allocate and mini-batch a second
+        207-wide buffer without a reader.
         """
         td_dict: dict[str, Any] = {"actor": _to_torch(obs["obs"], self.device)}
         if "critic" in obs:

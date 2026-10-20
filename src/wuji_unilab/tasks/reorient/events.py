@@ -8,14 +8,15 @@ import math
 import numpy as np
 import torch
 from unilab.managers import ManagerTermBase
-from unisim.dr.types import TensorResetRandomizationPayload
 
 from .commands import task
-from .math import torch_multiply, torch_random_quaternions, torch_soft_limits
-
-
-def _torch_uniform(rng, bounds, size, device):
-    return rng.uniform(bounds[0], bounds[1], size).to(device=device, dtype=torch.float32)
+from .math import multiply, random_quaternions, soft_limits, uniform_sample
+from .reset_bridge import (
+    bind_mocap_reset,
+    reset_backend,
+    write_geom_sizes,
+    write_mocap_reset,
+)
 
 
 class ResetWuji(ManagerTermBase):
@@ -23,12 +24,12 @@ class ResetWuji(ManagerTermBase):
         super().__init__(env)
         self.robot = env.scene["robot"]
         self.cube = env.scene["object"]
-        self.pose = self.robot._reset_state.bind_mocap_pose("robot/right_palm_link")
+        self.pose = bind_mocap_reset(self.robot, "robot/right_palm_link", term_name="wuji_reset")
         self.default_pose = torch.as_tensor(
             np.asarray(self.pose.default_pose).copy(), device=env.device, dtype=torch.float32
         )
         self.default = self.robot.data.default_joint_pos(env.device)[0]
-        self.limits = torch_soft_limits(
+        self.limits = soft_limits(
             self.robot.data.soft_joint_pos_limits(env.device),
             cfg.params["soft_limit_factor"],
         )
@@ -46,26 +47,22 @@ class ResetWuji(ManagerTermBase):
         del soft_limit_factor
         joint = self.default.repeat(env.num_envs, 1)
         selected = torch.tensor(self.offset_ids, device=joint.device, dtype=torch.long)
-        joint[:, selected] += _torch_uniform(
+        joint[:, selected] += uniform_sample(
             env.rng, joint_noise, (env.num_envs, selected.numel()), env.device
         )
         joint = torch.clamp(joint, self.limits[None, :, 0], self.limits[None, :, 1])
         self.robot.write_joint_state_to_sim_mask(joint, torch.zeros_like(joint), reset_mask)
         poses = self.default_pose.repeat(env.num_envs, 1)
-        angle = _torch_uniform(env.rng, wrist_pitch, (env.num_envs,), env.device)
+        angle = uniform_sample(env.rng, wrist_pitch, (env.num_envs,), env.device)
         zeros = torch.zeros_like(angle)
         rotation = torch.stack((torch.cos(angle / 2), zeros, torch.sin(angle / 2), zeros), dim=-1)
-        poses[:, 3:] = torch_multiply(poses[:, 3:], rotation)
-        # MJWarp 2.0's device-resident packed reset does not yet implement the
-        # `packed_reset_mocap` contract. Publish through the backend's selected-row
-        # binding instead of violating the Manager transaction fail-closed check.
-        rows = reset_mask.detach().cpu().nonzero(as_tuple=False).flatten().numpy()
-        self.pose.write(rows, poses.detach().cpu().numpy()[rows])
+        poses[:, 3:] = multiply(poses[:, 3:], rotation)
+        write_mocap_reset(self.pose, reset_mask, poses)
         state = self.cube.data.default_root_state(env.device).clone()
-        state[:, :3] += _torch_uniform(
+        state[:, :3] += uniform_sample(
             env.rng, (-cube_noise, cube_noise), (env.num_envs, 3), env.device
         )
-        state[:, 3:7] = torch_random_quaternions(env.rng, env.num_envs, device=env.device)
+        state[:, 3:7] = random_quaternions(env.rng, env.num_envs, device=env.device)
         state[:, 7:] = 0
         self.cube.write_root_state_tensor_to_sim(state, reset_mask)
 
@@ -173,12 +170,12 @@ class FixedRandomization(ManagerTermBase):
         if name == "cube_inertia":
             factor = self.ratios["cube_mass"][..., None]
         elif name == "cube_com":
-            self.samples[name] = default + _torch_uniform(env.rng, ranges[name], shape, self.device)
+            self.samples[name] = default + uniform_sample(env.rng, ranges[name], shape, self.device)
             return
         elif name in ("solref", "solimp"):
             factor = torch.ones(shape, device=self.device)
             for component, bounds in ranges[name].items():
-                factor[..., int(component)] = _torch_uniform(
+                factor[..., int(component)] = uniform_sample(
                     env.rng, bounds, shape[:-1], self.device
                 )
         else:
@@ -186,7 +183,7 @@ class FixedRandomization(ManagerTermBase):
             factor_shape = shape[:-1] if default.ndim == 3 else shape
             if name == "damping":
                 factor = torch.exp(
-                    _torch_uniform(
+                    uniform_sample(
                         env.rng,
                         (math.log(float(bounds[0])), math.log(float(bounds[1]))),
                         factor_shape,
@@ -194,7 +191,7 @@ class FixedRandomization(ManagerTermBase):
                     )
                 )
             else:
-                factor = _torch_uniform(env.rng, bounds, factor_shape, self.device)
+                factor = uniform_sample(env.rng, bounds, factor_shape, self.device)
             self.ratios[name] = factor.reshape(env.num_envs, -1).float()
             if default.ndim == 3:
                 factor = factor[..., None]
@@ -205,13 +202,16 @@ class FixedRandomization(ManagerTermBase):
         if not self.samples:
             for name, (_, _, default, _, _) in self.bindings.items():
                 self._sample(
-                    env, name, torch.as_tensor(np.asarray(default).copy(), device=self.device), ranges
+                    env,
+                    name,
+                    torch.as_tensor(np.asarray(default).copy(), device=self.device),
+                    ranges,
                 )
             for name, default in (("kp", self.kp), ("kd", self.kd)):
                 default = default.to(self.device)
                 lo, hi = ranges[name]
                 scale = torch.exp(
-                    _torch_uniform(
+                    uniform_sample(
                         env.rng,
                         (torch.log(torch.as_tensor(lo)), torch.log(torch.as_tensor(hi))),
                         (env.num_envs, default.shape[-1]),
@@ -220,7 +220,7 @@ class FixedRandomization(ManagerTermBase):
                 )
                 self.ratios[name] = scale.reshape(env.num_envs, -1)
                 self.samples[name] = default * scale
-            self.samples["encoder"] = _torch_uniform(
+            self.samples["encoder"] = uniform_sample(
                 env.rng, ranges["encoder"], (env.num_envs, self.robot.num_joints), self.device
             )
 
@@ -229,38 +229,32 @@ class FixedRandomization(ManagerTermBase):
             values[name] = self.samples[name]
 
         selected_ids = reset_mask.nonzero(as_tuple=False).flatten()
-        selected_rows = {
-            name: value[selected_ids]
-            for name, value in values.items()
-        }
-        packed_transaction = self.robot._reset_state._require_packed_transaction()
-        backend = packed_transaction.backend
-        # Compose each field into the active transaction. Geom sizes are the one
-        # MJWarp host-only DR field (derived bounds require `set_const`), so
-        # publish its selected rows through the public host-plane reset payload.
+        selected_rows = {name: value[selected_ids] for name, value in values.items()}
+        # Every field except geom size composes through its public Entity write.
+        # mjwarp geom sizes are host-only, so their selected rows cross the one
+        # documented backend boundary in reset_bridge.
         for name, (_, model_ids, _, write, selector) in self.bindings.items():
-            if name in ("hand_size", "cube_size"):
-                rows_cpu = selected_ids.detach().cpu()
-                full = self.samples[name].to(device="cpu", dtype=torch.float32)
-                selected_sizes = full[rows_cpu].numpy()
-                owner = self.robot if name == "hand_size" else self.cube
-                local_ids = np.asarray(model_ids, dtype=np.intp)
-                backend_columns = np.asarray(owner._geom_ids, dtype=np.intp)[local_ids]
-                host_sizes = backend._dr_geom_size.copy()
-                host_sizes[np.ix_(rows_cpu.numpy(), backend_columns)] = selected_sizes
-                updates = backend._prepare_reset_randomization(
-                    np.arange(env.num_envs),
-                    TensorResetRandomizationPayload(geom_size=torch.from_numpy(host_sizes)),
-                )
-                backend._apply_model_updates(updates)
-                continue
-            if name != "cube_size":
+            if name not in ("hand_size", "cube_size"):
                 write(
                     selected_rows[name],
                     env_ids=selected_ids,
                     **{selector: model_ids},
                     term_name="wuji_randomize",
                 )
+        backend = reset_backend(self.robot)
+        for name in ("hand_size", "cube_size"):
+            owner = self.robot if name == "hand_size" else self.cube
+            local_ids, model_ids = self.bindings[name][1:3]
+            backend_columns = np.asarray(owner._geom_ids, dtype=np.intp)[
+                np.asarray(local_ids, dtype=np.intp)
+            ]
+            write_geom_sizes(
+                backend,
+                model_ids=model_ids,
+                backend_geom_ids=backend_columns,
+                reset_mask=reset_mask,
+                values=self.samples[name],
+            )
 
         # `write_actuator_gains_tensor_mask` publishes a full-width table and
         # therefore requires the exact transaction mask. In an event reset that
@@ -318,7 +312,7 @@ class VelocityDisturbance(ManagerTermBase):
             (env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0.0, 1.0
         )
         curr_max = speed_range[0] + (speed_range[1] - speed_range[0]) * progress * state.adaptive
-        speed = _torch_uniform(
+        speed = uniform_sample(
             env.rng,
             (speed_range[0], torch.maximum(torch.tensor(speed_range[0]), curr_max)),
             (int(mask.sum()), 1),

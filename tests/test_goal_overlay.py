@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 from unilab.envs import ManagerBasedRlEnv
 from unisim.backend.base import DebugPrimitive
 
@@ -51,9 +52,13 @@ def test_goal_overlay_pose_matches_source_marker_semantics():
     (primitives,) = overlay.goal_overlay_getter(env)()
     ghost, frame = primitives
 
-    expected_quat = multiply(
-        np.asarray([tag_quat], dtype=np.float64), np.asarray([goal], dtype=np.float64)
-    )[0]
+    expected_quat = (
+        multiply(
+            torch.tensor([tag_quat], dtype=torch.float64), torch.tensor([goal], dtype=torch.float64)
+        )[0]
+        .cpu()
+        .numpy()
+    )
     assert ghost.mesh_asset == overlay.GOAL_MESH_ASSET == "object/cube_mesh"
     assert ghost.pos == pytest.approx((0.1, -0.2, 0.5 + overlay.GOAL_VIS_Z_OFFSET))
     assert ghost.quat == pytest.approx(tuple(expected_quat))

@@ -9,7 +9,7 @@ import torch
 from unilab.base.entity import Entity
 from unilab.managers import ActionTerm, ActionTermCfg
 
-from .math import torch_soft_limits
+from .math import soft_limits
 
 
 @dataclass(kw_only=True)
@@ -38,7 +38,7 @@ class WujiAction(ActionTerm):
         # action targets rather than repeating them per environment.
         limits = self.robot.data.soft_joint_pos_limits(device)
         limits = torch.as_tensor(limits, dtype=torch.float32, device=device)
-        self.limits = torch_soft_limits(limits, cfg.soft_limit_factor)
+        self.limits = soft_limits(limits, cfg.soft_limit_factor)
         self.limits = self.limits[0] if self.limits.ndim == 3 else self.limits
         self.target = self.default.clone()
         self.raw = torch.zeros_like(self.target)

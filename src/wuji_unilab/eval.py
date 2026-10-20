@@ -98,11 +98,12 @@ def _require_record_capabilities(env: ManagerBasedRlEnv) -> None:
         )
 
 
-def _sample_separated_goal(rng: np.random.Generator, current: np.ndarray) -> np.ndarray:
+def _sample_separated_goal(rng: np.random.Generator, current: torch.Tensor) -> torch.Tensor:
+    current = current.detach().cpu()
     for _ in range(1000):
-        goal = random_quaternions(rng, 1)[0]
-        if angle_error(goal[None], current[None])[0] >= np.pi / 2:
-            return goal
+        goal = random_quaternions(rng, 1)
+        if angle_error(goal, current[None].expand_as(goal))[0] >= np.pi / 2:
+            return goal[0]
     raise RuntimeError("Failed to sample an SO(3) goal at least 90 degrees away")
 
 
@@ -180,9 +181,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                 obs, _ = wrapper.reset()
                 drop_reference_z = float(task(env).cube_position()[0, 2])
             state = task(env)
-            current = state.cube_tag()[1][0].detach().cpu().numpy()
-            state.goal[0] = torch.as_tensor(
-                _sample_separated_goal(rng, current), dtype=state.goal.dtype, device=state.goal.device
+            state.goal[0] = _sample_separated_goal(rng, state.cube_tag()[1][0]).to(
+                device=state.goal.device, dtype=state.goal.dtype
             )
             state.hold[0] = 0
             state.goal_timer[0] = 0
@@ -213,9 +213,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                         first_success = step * env.step_dt
                         status = "success"
                         break
-                    if float(state.cube_position()[0, 2]) < (
-                        drop_reference_z + args.drop_height
-                    ):
+                    if float(state.cube_position()[0, 2]) < (drop_reference_z + args.drop_height):
                         status = "drop"
                         break
             reset_before_trial = status != "success"

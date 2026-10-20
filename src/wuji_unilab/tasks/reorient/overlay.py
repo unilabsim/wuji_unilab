@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 from unisim.backend.base import DebugOverlayGetter, DebugPrimitive
 
 from .math import multiply
@@ -34,8 +35,13 @@ def goal_pose_world(state: ReorientCommand) -> tuple[np.ndarray, np.ndarray]:
     """Return the per-env world-frame goal cube pose ``(pos, quat_wxyz)``."""
     cube_pos = np.asarray(state.cube_position(), dtype=np.float64)
     _, tag_quat = state.tag_pose()
-    goal_quat = multiply(
-        np.asarray(tag_quat, dtype=np.float64), np.asarray(state.goal, dtype=np.float64)
+    goal_quat = (
+        multiply(
+            torch.as_tensor(tag_quat, dtype=torch.float64),
+            torch.as_tensor(state.goal, dtype=torch.float64),
+        )
+        .cpu()
+        .numpy()
     )
     goal_pos = cube_pos + np.array([0.0, 0.0, GOAL_VIS_Z_OFFSET], dtype=np.float64)
     return goal_pos, goal_quat

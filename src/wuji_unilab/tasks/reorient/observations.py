@@ -8,10 +8,10 @@ from unilab.managers import ManagerTermBase
 
 from .commands import task
 from .math import (
-    torch_conjugate,
-    torch_multiply,
-    torch_random_quaternions,
-    torch_rotation6d,
+    conjugate,
+    multiply,
+    random_quaternions,
+    rotation6d,
 )
 
 
@@ -58,14 +58,14 @@ def feature(env, kind: str, injection_prob: float = 0.0):
         q = (
             torch.zeros((env.num_envs, 4), device=env.device)
             if read_plan is None
-            else torch_multiply(state.cube_tag()[1], torch_conjugate(state.goal))
+            else multiply(state.cube_tag()[1], conjugate(state.goal))
         )
         if injection_prob:
             mask = env.rng.random(env.num_envs) < injection_prob
             q = torch.where(
-                mask[:, None], torch_random_quaternions(env.rng, env.num_envs, device=env.device), q
+                mask[:, None], random_quaternions(env.rng, env.num_envs, device=env.device), q
             )
-        return torch_rotation6d(q)
+        return rotation6d(q)
     if kind == "action":
         return env.action_manager.prev_action
     if read_plan is None:
@@ -92,9 +92,9 @@ def feature(env, kind: str, injection_prob: float = 0.0):
     if kind == "linvel":
         return state.cube_velocity()
     if kind == "angvel":
-        return _require_read_plan(env).body_tensor_view(
-            "object", (state.cube_name,)
-        ).ang_vel_w[:, 0]
+        return (
+            _require_read_plan(env).body_tensor_view("object", (state.cube_name,)).ang_vel_w[:, 0]
+        )
     if kind == "perturbation":
         return state.perturbation
     if kind == "force_direction":
@@ -116,7 +116,7 @@ def feature(env, kind: str, injection_prob: float = 0.0):
     if kind == "palm":
         if read_plan is None:
             return torch.zeros((env.num_envs, 6), device=env.device)
-        return torch_rotation6d(state.palm_pose()[1])
+        return rotation6d(state.palm_pose()[1])
     raise ValueError(f"Unknown Wuji observation feature: {kind}")
 
 
@@ -176,4 +176,4 @@ class PalmFeature(ManagerTermBase):
         state = task(self._env)
         if getattr(self._env.scene, "read_plan", None) is None:
             return torch.zeros((self._env.num_envs, 6), device=self._env.device)
-        return torch_rotation6d(state.palm_pose()[1])
+        return rotation6d(state.palm_pose()[1])

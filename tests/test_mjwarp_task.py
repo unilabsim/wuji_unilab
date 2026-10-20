@@ -62,14 +62,14 @@ def test_full_randomization_step_and_partial_reset_isolation(env):
     before_pose = state.robot.read_mocap_pose().copy()
     ratios = state.dr_ratios.clone()
     env.reset(torch.tensor([False, True, False, False], dtype=torch.bool, device=env.device))
-    torch.testing.assert_close(env.scene.read_plan.joint_tensor_view("robot").joint_pos[[0, 2, 3]], before_joint[[0, 2, 3]])
+    torch.testing.assert_close(
+        env.scene.read_plan.joint_tensor_view("robot").joint_pos[[0, 2, 3]], before_joint[[0, 2, 3]]
+    )
     # reset() refreshes derived body state for the whole batch. The position
     # cache may therefore change from the pre-reset, post-step derived frame;
     # mocap, joint state and fixed DR values below are the non-stale isolation
     # boundaries of this task.
-    np.testing.assert_allclose(
-        state.robot.read_mocap_pose()[[0, 2, 3]], before_pose[[0, 2, 3]]
-    )
+    np.testing.assert_allclose(state.robot.read_mocap_pose()[[0, 2, 3]], before_pose[[0, 2, 3]])
     torch.testing.assert_close(state.dr_ratios, ratios, rtol=0.0, atol=1e-7)
     assert not np.allclose(state.robot.read_mocap_pose()[1], before_pose[1])
 
