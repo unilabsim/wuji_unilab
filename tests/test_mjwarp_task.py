@@ -61,7 +61,7 @@ def test_full_randomization_step_and_partial_reset_isolation(env):
     state.robot.bind_mocap_pose_write("robot/right_palm_link", term_name="test_mocap_read")
     before_pose = state.robot.read_mocap_pose().copy()
     ratios = state.dr_ratios.clone()
-    env.reset(torch.tensor([False, True, False, False], dtype=torch.bool, device=env.device))
+    env.reset(torch.tensor([1], dtype=torch.int64, device=env.device))
     torch.testing.assert_close(
         env.scene.read_plan.joint_tensor_view("robot").joint_pos[[0, 2, 3]], before_joint[[0, 2, 3]]
     )

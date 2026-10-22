@@ -1,10 +1,9 @@
-"""Isolated bridges for UniLab 1.4 mjwarp reset capability gaps.
+"""Isolated bridges for mjwarp reset capability gaps.
 
-Each function prefers the public Entity boundary. Mocap and geometry-size writes
-fall back to backend-owned boundaries only where mjwarp 2.0 cannot express them
-through the current packed reset API. Keeping those calls here makes the
-documented gaps auditable and prevents upstream-private names from spreading
-through task terms.
+UniLab 1.5 owns the public ``env_ids`` reset contract and observation history.
+The only remaining task bridges are mjwarp fields whose derived constants still
+cannot travel through the device-resident packed reset commit: selected mocap
+poses and geometry sizes.
 """
 
 from __future__ import annotations
@@ -31,9 +30,9 @@ def bind_mocap_reset(entity: ResetEntity, body_name: str, *, term_name: str):
     return reset_state.bind_mocap_pose(body_name)
 
 
-def write_mocap_reset(binding, reset_mask: torch.Tensor, poses: torch.Tensor) -> None:
+def write_mocap_reset(binding, env_ids: torch.Tensor, poses: torch.Tensor) -> None:
     """Publish selected mocap rows while mjwarp lacks packed-reset mocap."""
-    rows = reset_mask.detach().cpu().nonzero(as_tuple=False).flatten().numpy()
+    rows = env_ids.detach().cpu().numpy()
     binding.write(rows, poses.detach().cpu().numpy()[rows])
 
 
@@ -48,22 +47,24 @@ def reset_backend(entity: ResetEntity):
 def write_geom_sizes(
     backend,
     *,
-    model_ids: np.ndarray,
     backend_geom_ids: np.ndarray,
-    reset_mask: torch.Tensor,
+    reset_rows: np.ndarray,
     values: torch.Tensor,
 ) -> None:
     """Publish host-only geom sizes and rebuild derived geometry fields.
 
-    UniLab 1.4 exposes geom-size staging, but mjwarp 2.0 does not include that
-    field in its device-plane reset commit; derived bounds require the backend's
-    model update boundary.
+    UniLab exposes geom-size staging, but mjwarp does not include that field in
+    its device-plane reset commit; derived bounds require the backend's model
+    update boundary.  ``reset_rows`` carries only the env rows being
+    written so validation and derived-bound recompute stay proportional to the
+    reset set instead of the full batch.
     """
-    rows = reset_mask.detach().cpu().numpy()
-    host_sizes = backend._dr_geom_size.copy()
-    host_sizes[np.ix_(rows, backend_geom_ids)] = values.detach().cpu().numpy()[rows]
+    if reset_rows.size == 0:
+        return
+    sizes = np.array(backend._dr_geom_size[reset_rows], copy=True)
+    sizes[:, backend_geom_ids] = values.detach().cpu().numpy()[reset_rows]
     updates = backend._prepare_reset_randomization(
-        np.arange(host_sizes.shape[0]),
-        TensorResetRandomizationPayload(geom_size=torch.from_numpy(host_sizes)),
+        reset_rows,
+        TensorResetRandomizationPayload(geom_size=torch.from_numpy(sizes)),
     )
     backend._apply_model_updates(updates)

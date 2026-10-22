@@ -113,77 +113,85 @@ env:
       enable_corruption: true
       terms:
         joint:
-          func: wuji_unilab.tasks.reorient.observations.NoisyHistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: joint
-            history_length: 3
-            low: -0.06
-            high: 0.06
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.06
+            n_max: 0.06
         target_error:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: target_error
-            history_length: 3
+          history_length: 3
         position:
-          func: wuji_unilab.tasks.reorient.observations.NoisyHistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: position
-            history_length: 3
             injection_prob: 0.02
-            low: -0.008
-            high: 0.008
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.008
+            n_max: 0.008
         orientation:
-          func: wuji_unilab.tasks.reorient.observations.NoisyHistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: orientation
-            history_length: 3
             injection_prob: 0.02
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.GaussianNoiseCfg
             std: 0.05
         action:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: action
-            history_length: 3
+          history_length: 3
     critic:
       enable_corruption: false
       terms:
         joint:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: joint
-            history_length: 3
+          history_length: 3
         target_error:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: target_error
-            history_length: 3
+          history_length: 3
         position:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: position
-            history_length: 3
+          history_length: 3
         orientation:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: orientation
-            history_length: 3
+          history_length: 3
         action:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: action
-            history_length: 3
+          history_length: 3
         qpos:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: qpos
-            history_length: 3
+          history_length: 3
         qvel:
-          func: wuji_unilab.tasks.reorient.observations.HistoryFeature
+          func: wuji_unilab.tasks.reorient.observations.feature
           params:
             kind: qvel
-            history_length: 3
+          history_length: 3
         tips:
           func: wuji_unilab.tasks.reorient.observations.TipsFeature
+          history_length: 3
+          scale: 5
         clean_position:
           func: wuji_unilab.tasks.reorient.observations.feature
           params:
@@ -465,6 +473,8 @@ training:
   sim_backend: mjwarp
   device: cuda:0
   logger: tensorboard
+  # Match the mjlab reference learner; UniLab owns the TF32 policy and records it.
+  tf32_matmul: tf32
   no_play: true
   play_render_mode: record
   play_env_num: 4

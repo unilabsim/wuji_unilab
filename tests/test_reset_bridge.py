@@ -35,7 +35,7 @@ def test_reset_backend_requires_active_transaction():
 def test_write_mocap_reset_publishes_only_selected_rows():
     binding = Binding()
     poses = torch.arange(14, dtype=torch.float32).reshape(2, 7)
-    write_mocap_reset(binding, torch.tensor([False, True]), poses)
+    write_mocap_reset(binding, torch.tensor([1], dtype=torch.int64), poses)
     assert len(binding.writes) == 1
     rows, selected = binding.writes[0]
     np.testing.assert_allclose(rows, [1])
@@ -46,18 +46,35 @@ def test_write_geom_sizes_replaces_selected_columns():
     applied = []
     backend = SimpleNamespace(
         _dr_geom_size=np.ones((2, 3, 3), dtype=np.float32),
-        _prepare_reset_randomization=lambda rows, payload: ("prepared", payload),
+        _prepare_reset_randomization=lambda rows, payload: ("prepared", rows, payload),
         _apply_model_updates=applied.append,
     )
     values = torch.full((2, 1, 3), 2.0)
     write_geom_sizes(
         backend,
-        model_ids=np.asarray([1]),
         backend_geom_ids=np.asarray([2]),
-        reset_mask=torch.tensor([False, True]),
+        reset_rows=np.asarray([1]),
         values=values,
     )
     assert len(applied) == 1
-    payload = applied[0][1].geom_size
-    np.testing.assert_allclose(payload[0, 2], 1.0)
-    np.testing.assert_allclose(payload[1, 2], 2.0)
+    _, rows, payload = applied[0]
+    np.testing.assert_allclose(rows, [1])
+    assert payload.geom_size.shape == (1, 3, 3)
+    np.testing.assert_allclose(payload.geom_size[0, 0], 1.0)
+    np.testing.assert_allclose(payload.geom_size[0, 2], 2.0)
+
+
+def test_write_geom_sizes_skips_empty_selection():
+    applied = []
+    backend = SimpleNamespace(
+        _dr_geom_size=np.ones((2, 3, 3), dtype=np.float32),
+        _prepare_reset_randomization=lambda rows, payload: ("prepared", rows, payload),
+        _apply_model_updates=applied.append,
+    )
+    write_geom_sizes(
+        backend,
+        backend_geom_ids=np.asarray([2]),
+        reset_rows=np.asarray([], dtype=np.intp),
+        values=torch.full((2, 1, 3), 2.0),
+    )
+    assert applied == []

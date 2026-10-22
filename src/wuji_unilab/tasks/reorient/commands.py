@@ -239,16 +239,16 @@ class ReorientCommand(CommandTerm):
         self._pose_stale = True
         self._tag_stale = True
 
-    def reset(self, reset_mask):
-        extras = super().reset(reset_mask)
-        self.goal_count.masked_fill_(reset_mask, 0)
-        self.goal_timer.masked_fill_(reset_mask, 0)
-        self.within.masked_fill_(reset_mask, False)
-        self.reward_timer.masked_fill_(reset_mask, 0)
-        self.cage_counter.masked_fill_(reset_mask, 0)
-        self.outside.masked_fill_(reset_mask, False)
-        self.perturbation[reset_mask] = 0.0
-        self.force_direction[reset_mask] = 0.0
+    def reset(self, env_ids):
+        extras = super().reset(env_ids)
+        self.goal_count[env_ids] = 0
+        self.goal_timer[env_ids] = 0
+        self.within[env_ids] = False
+        self.reward_timer[env_ids] = 0
+        self.cage_counter[env_ids] = 0.0
+        self.outside[env_ids] = False
+        self.perturbation[env_ids] = 0.0
+        self.force_direction[env_ids] = 0.0
         self._pose_stale = True
         self._tag_stale = True
         return extras

@@ -5,7 +5,6 @@
 
 import torch
 from unilab.managers import ManagerTermBase
-from unilab.managers._buffers import CircularBuffer
 
 from .commands import task
 from .math import (
@@ -121,94 +120,14 @@ def feature(env, kind: str, injection_prob: float = 0.0):
     raise ValueError(f"Unknown Wuji observation feature: {kind}")
 
 
-class HistoryFeature(ManagerTermBase):
-    """Publish a term-owned history stack with the UniLab 1.3 temporal layout.
+class TipsFeature(ManagerTermBase):
+    """Declare the fingertip packed reads for the ``tips`` observation kind."""
 
-    UniLab 1.4 removed manager-owned temporal state because it lacked a mask
-    reset boundary. The task still needs the fixed 207/413 policy/critic widths,
-    so each history term owns the same chronological, backfilled stack while
-    implementing the 1.4 class-term reset contract.
-    """
-
-    def __init__(self, cfg, env, kind: str = "joint", history_length: int = 3, scale: float = 1.0):
-        super().__init__(env)
-        params = getattr(cfg, "params", {}) if cfg is not None else {}
-        self.cfg = cfg
-        self.kind = str(params.get("kind", kind))
-        configured_history = params.get("history_length", history_length)
-        if isinstance(configured_history, bool) or not isinstance(configured_history, int):
-            raise TypeError(f"history_length must be an integer, got {configured_history!r}")
-        self.history_length = configured_history
-        if self.history_length <= 0:
-            raise ValueError(f"history_length must be positive, got {self.history_length}")
-        self.scale = float(params.get("scale", scale))
-        self.buffer = CircularBuffer(max_len=self.history_length, batch_size=env.num_envs)
-
-    @property
-    def tensor_state_entity(self) -> str:
-        return "robot"
-
-    def _publish(self, frame: torch.Tensor) -> torch.Tensor:
-        frame = frame.to(device=self._env.device, dtype=torch.float32) * self.scale
-        if frame.ndim == 1:
-            frame = frame[:, None]
-        if frame.ndim != 2 or frame.shape[0] != self._env.num_envs:
-            raise ValueError(f"Wuji history frame must be 2-D, got {tuple(frame.shape)}")
-        self.buffer.append(frame)
-        return self.buffer.buffer.reshape(self._env.num_envs, -1)
-
-    def reset(self, reset_mask: torch.Tensor) -> None:
-        self.buffer.reset(batch_ids=reset_mask.nonzero(as_tuple=False).flatten())
-
-    def __call__(self, env, **params) -> torch.Tensor:
-        del env
-        return self._publish(
-            feature(self._env, self.kind, injection_prob=float(params.get("injection_prob", 0.0)))
-        )
-
-
-class NoisyHistoryFeature(HistoryFeature):
-    """Apply the 1.3 transform pipeline to each frame before it enters history."""
-
-    def __init__(
-        self,
-        cfg,
-        env,
-        kind: str = "joint",
-        history_length: int = 3,
-        low: float = 0.0,
-        high: float = 0.0,
-        std: float = 0.0,
-    ):
-        super().__init__(cfg, env, kind=kind, history_length=history_length)
-        params = getattr(cfg, "params", {}) if cfg is not None else {}
-        self.low = float(params.get("low", low))
-        self.high = float(params.get("high", high))
-        self.std = float(params.get("std", std))
-
-    def __call__(self, env, **params) -> torch.Tensor:
-        del env
-        frame = feature(
-            self._env,
-            self.kind,
-            injection_prob=float(params.get("injection_prob", 0.0)),
-        )
-        if self.low or self.high:
-            frame = frame + self._env.rng.uniform(
-                self.low, self.high, tuple(frame.shape), dtype=torch.float32
-            )
-        if self.std:
-            frame = frame + self._env.rng.normal(
-                0.0, self.std, tuple(frame.shape), dtype=torch.float32
-            )
-        return self._publish(frame)
-
-
-class TipsFeature(HistoryFeature):
     entity_name = "robot"
 
-    def __init__(self, cfg, env, history_length: int = 3, scale: float = 5.0):
-        super().__init__(cfg, env, kind="tips", history_length=history_length, scale=scale)
+    def __init__(self, cfg, env):
+        super().__init__(env)
+        self.cfg = cfg
 
     @property
     def tensor_state_entity(self) -> str:
@@ -217,6 +136,10 @@ class TipsFeature(HistoryFeature):
     @property
     def tensor_body_names(self) -> tuple[str, ...]:
         return task(self._env).tip_names
+
+    def __call__(self, env) -> torch.Tensor:
+        del env
+        return feature(self._env, "tips")
 
 
 class CubeAngularVelocityFeature(ManagerTermBase):

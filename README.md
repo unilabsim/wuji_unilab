@@ -2,7 +2,7 @@
 
 [中文](README_zh.md)
 
-In-hand cube reorientation with the Wuji Hand five-finger dexterous hand: the policy drives 20 finger joints to continuously turn a palm-held cube toward random goal orientations. This project migrates the task from [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab) onto [UniLab](https://github.com/Motphys/UniLab) + [UniSim](https://github.com/unilabsim/unisim)'s MuJoCo-Warp (`mjwarp`) GPU physics backend + [rsl_rl](https://github.com/leggedrobotics/rsl_rl) PPO (UniLab 1.4.0 trains on rsl-rl directly, no unilab-rl). Robot meshes and textures ship with the repository.
+In-hand cube reorientation with the Wuji Hand five-finger dexterous hand: the policy drives 20 finger joints to continuously turn a palm-held cube toward random goal orientations. This project migrates the task from [wuji-mjlab](https://github.com/wuji-technology/wuji-mjlab) onto [UniLab](https://github.com/Motphys/UniLab) + [UniSim](https://github.com/unilabsim/unisim)'s MuJoCo-Warp (`mjwarp`) GPU physics backend + [rsl_rl](https://github.com/leggedrobotics/rsl_rl) PPO (UniLab 1.5.0 trains on rsl-rl directly, no unilab-rl). Robot meshes and textures ship with the repository.
 
 ![Wuji Hand cube reorientation playback](docs/assets/wuji_reorient_play.gif)
 
@@ -33,7 +33,7 @@ uv run --no-sync wuji-assets       # verify the bundled assets
 uv run --no-sync wuji-list-envs    # list tasks
 ```
 
-All dependencies resolve from PyPI via the lockfile (UniLab 1.4.0, unisim-core 2.0.0, torch 2.9.0+cu128, rsl-rl 5.5.1) — no separate UniLab clone is needed. This repository itself is source-install only and is not published to PyPI. The repository does not ship a trained checkpoint; the training section below produces your own.
+All dependencies resolve from PyPI via the lockfile (UniLab 1.5.0, unisim-core 2.1.0, torch 2.14.1+cu130, rsl-rl 5.5.1) — no separate UniLab clone is needed. This repository itself is source-install only and is not published to PyPI. The repository does not ship a trained checkpoint; the training section below produces your own.
 
 ## Training and evaluation
 

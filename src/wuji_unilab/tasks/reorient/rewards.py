@@ -117,37 +117,36 @@ class SensorFeatureReward(ManagerTermBase):
         ).float()
 
 
-def _full_reset_mask(env, reset_mask) -> torch.Tensor:
-    """Normalize Manager curriculum mask boundaries (``None`` or full slice)."""
-    if reset_mask is None or isinstance(reset_mask, slice):
-        return torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
-    return torch.as_tensor(reset_mask, device=env.device).to(dtype=torch.bool)
+def _resolve_rows(env, env_ids):
+    """Normalize the Manager curriculum row selector (``None`` or full slice)."""
+    if env_ids is None or isinstance(env_ids, slice):
+        return slice(None), env.num_envs > 0
+    return env_ids, env_ids.numel() > 0
 
 
 def success_curriculum(
     env,
-    reset_mask=None,
+    env_ids=None,
     count_threshold: int = 3,
     delta_per_loop: float = 0.08,
 ):
     state = task(env)
-    reset_mask = _full_reset_mask(env, reset_mask)
+    rows, has_rows = _resolve_rows(env, env_ids)
     successes = state.goal_count >= count_threshold
     applied_delta = float(delta_per_loop * torch.where(successes, 1.0, -1.0).sum() / env.num_envs)
     state.difficulty = float(min(max(state.difficulty + applied_delta, 0.0), 1.0))
     goal_count = state.goal_count.float()
-    has_reset_rows = bool(reset_mask.any())
     return {
         "value": state.difficulty,
-        "mean_goal_reach_count": float(goal_count[reset_mask].mean()) if has_reset_rows else 0.0,
-        "success_env_frac": float(successes[reset_mask].float().mean()) if has_reset_rows else 0.0,
+        "mean_goal_reach_count": float(goal_count[rows].mean()) if has_rows else 0.0,
+        "success_env_frac": float(successes[rows].float().mean()) if has_rows else 0.0,
         "delta": applied_delta,
     }
 
 
 def adaptive_episode_curriculum(
     env,
-    reset_mask=None,
+    env_ids=None,
     target_steps: int = 800,
     inc_rate: float = 0.1,
     dec_rate: float = 0.2,
@@ -155,7 +154,7 @@ def adaptive_episode_curriculum(
     drop_gamma: float = 1.0,
 ):
     state = task(env)
-    reset_mask = _full_reset_mask(env, reset_mask)
+    rows, has_rows = _resolve_rows(env, env_ids)
     progress = torch.clamp(env.episode_length_buf / target_steps, max=1.0)
     reached = progress >= 1
     dropped = env.termination_manager.terminated & ~reached
@@ -167,17 +166,14 @@ def adaptive_episode_curriculum(
         / env.num_envs
     )
     state.adaptive = float(min(max(state.adaptive + applied_delta, min_scale), 1.0))
-    selected = reset_mask
     return {
         "value": state.adaptive,
-        "mean_episode_steps": float(env.episode_length_buf[selected].float().mean())
-        if bool(selected.any())
+        "mean_episode_steps": float(env.episode_length_buf[rows].float().mean())
+        if has_rows
         else 0.0,
-        "mean_progress": float(progress[selected].mean()) if bool(selected.any()) else 0.0,
-        "reached_target_frac": float(reached[selected].float().mean())
-        if bool(selected.any())
-        else 0.0,
-        "early_drop_frac": float(dropped[selected].float().mean()) if bool(selected.any()) else 0.0,
+        "mean_progress": float(progress[rows].mean()) if has_rows else 0.0,
+        "reached_target_frac": float(reached[rows].float().mean()) if has_rows else 0.0,
+        "early_drop_frac": float(dropped[rows].float().mean()) if has_rows else 0.0,
         "target_steps": float(target_steps),
         "delta": applied_delta,
     }

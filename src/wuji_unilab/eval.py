@@ -112,10 +112,11 @@ def _refresh_policy_observation(
 ):
     """Refresh fixed-shape observations after a manually selected trial goal."""
     if reset_history:
-        reset_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-        reset_mask[0] = True
-        env.observation_manager.reset(reset_mask)
-    groups = env.observation_manager.compute(update_history=True)
+        env_ids = torch.zeros(1, dtype=torch.long, device=env.device)
+        env.observation_manager.reset(env_ids)
+        groups = env.observation_manager.compute(update_history=True, env_ids=env_ids)
+    else:
+        groups = env.observation_manager.compute(update_history=True)
     env_cfg = cast(Any, env.cfg)
     policy_group = groups[env_cfg.policy_observation_group]
     critic_group = groups[env_cfg.critic_observation_group]

@@ -69,6 +69,6 @@ class WujiAction(ActionTerm):
     def apply_actions(self):
         self.robot.set_joint_position_target(self.target)
 
-    def reset(self, reset_mask: torch.Tensor):
-        self.target[reset_mask] = self.default[reset_mask]
-        self.raw[reset_mask] = 0.0
+    def reset(self, env_ids: torch.Tensor):
+        self.target[env_ids] = self.default[env_ids]
+        self.raw[env_ids] = 0.0

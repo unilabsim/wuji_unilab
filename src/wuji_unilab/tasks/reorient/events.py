@@ -7,6 +7,7 @@ import math
 
 import numpy as np
 import torch
+from unilab.base.reset_selectors import ResetMaskBuffer
 from unilab.managers import ManagerTermBase
 
 from .commands import task
@@ -34,17 +35,19 @@ class ResetWuji(ManagerTermBase):
             cfg.params["soft_limit_factor"],
         )
         self.offset_ids = self.robot.find_joints("robot/right_finger[1-5]_joint[134]")[0]
+        self._reset_mask = ResetMaskBuffer(env.num_envs, env.device)
 
-    def reset(
+    def __call__(
         self,
         env,
-        reset_mask: torch.Tensor,
+        env_ids: torch.Tensor,
         soft_limit_factor: float,
         joint_noise: tuple,
         cube_noise: float,
         wrist_pitch: tuple,
     ):
         del soft_limit_factor
+        reset_mask = self._reset_mask.scatter(env_ids)
         joint = self.default.repeat(env.num_envs, 1)
         selected = torch.tensor(self.offset_ids, device=joint.device, dtype=torch.long)
         joint[:, selected] += uniform_sample(
@@ -57,7 +60,7 @@ class ResetWuji(ManagerTermBase):
         zeros = torch.zeros_like(angle)
         rotation = torch.stack((torch.cos(angle / 2), zeros, torch.sin(angle / 2), zeros), dim=-1)
         poses[:, 3:] = multiply(poses[:, 3:], rotation)
-        write_mocap_reset(self.pose, reset_mask, poses)
+        write_mocap_reset(self.pose, env_ids, poses)
         state = self.cube.data.default_root_state(env.device).clone()
         state[:, :3] += uniform_sample(
             env.rng, (-cube_noise, cube_noise), (env.num_envs, 3), env.device
@@ -161,6 +164,13 @@ class FixedRandomization(ManagerTermBase):
             "joint_ids",
         )
         self.gain_ids, self.kp, self.kd = r.bind_actuator_gain_write(term_name=term)
+        # Sampled tables are immutable after the first reset, so a geom-size row
+        # only needs the host-only backend write once per env.  Track published
+        # rows and skip the (host-computed, full-width-uploading) rewrite.
+        self._geom_size_applied = {
+            name: torch.zeros(env.num_envs, dtype=torch.bool, device=self.device)
+            for name in ("hand_size", "cube_size")
+        }
 
     def _sample(self, env, name: str, default: torch.Tensor, ranges: dict):
         # 1.4 model-field bindings return immutable one-row/default tables for
@@ -197,7 +207,7 @@ class FixedRandomization(ManagerTermBase):
                 factor = factor[..., None]
         self.samples[name] = default * factor
 
-    def reset(self, env, reset_mask: torch.Tensor, ranges: dict, total_steps: int):
+    def __call__(self, env, env_ids: torch.Tensor, ranges: dict, total_steps: int):
         del total_steps
         if not self.samples:
             for name, (_, _, default, _, _) in self.bindings.items():
@@ -228,8 +238,7 @@ class FixedRandomization(ManagerTermBase):
         for name, (_, _, _, _, _) in self.bindings.items():
             values[name] = self.samples[name]
 
-        selected_ids = reset_mask.nonzero(as_tuple=False).flatten()
-        selected_rows = {name: value[selected_ids] for name, value in values.items()}
+        selected_rows = {name: value[env_ids] for name, value in values.items()}
         # Every field except geom size composes through its public Entity write.
         # mjwarp geom sizes are host-only, so their selected rows cross the one
         # documented backend boundary in reset_bridge.
@@ -237,7 +246,7 @@ class FixedRandomization(ManagerTermBase):
             if name not in ("hand_size", "cube_size"):
                 write(
                     selected_rows[name],
-                    env_ids=selected_ids,
+                    env_ids=env_ids,
                     **{selector: model_ids},
                     term_name="wuji_randomize",
                 )
@@ -248,28 +257,29 @@ class FixedRandomization(ManagerTermBase):
             backend_columns = np.asarray(owner._geom_ids, dtype=np.intp)[
                 np.asarray(local_ids, dtype=np.intp)
             ]
+            applied = self._geom_size_applied[name]
+            pending_ids = env_ids[~applied[env_ids]]
+            if not pending_ids.numel():
+                continue
             write_geom_sizes(
                 backend,
-                model_ids=model_ids,
                 backend_geom_ids=backend_columns,
-                reset_mask=reset_mask,
+                reset_rows=pending_ids.detach().cpu().numpy(),
                 values=self.samples[name],
             )
+            applied[pending_ids] = True
 
         # `write_actuator_gains_tensor_mask` publishes a full-width table and
         # therefore requires the exact transaction mask. In an event reset that
         # mask is subset-only, so use the selected-row facade instead.
         self.robot.write_actuator_gains_to_sim(
-            self.samples["kp"][selected_ids],
-            self.samples["kd"][selected_ids],
+            self.samples["kp"][env_ids],
+            self.samples["kd"][env_ids],
             actuator_ids=self.gain_ids,
-            env_ids=selected_ids,
+            env_ids=env_ids,
             term_name="wuji_randomize",
         )
-        columns = torch.arange(self.robot.num_joints, device=self.device)
-        self.robot.data.update_encoder_bias_tensor_mask(
-            reset_mask, columns, self.samples["encoder"]
-        )
+        self.robot.data.encoder_bias_tensor[env_ids] = self.samples["encoder"][env_ids]
         ratios = torch.stack(
             [
                 self.ratios[name].mean(dim=1)
@@ -277,7 +287,7 @@ class FixedRandomization(ManagerTermBase):
             ],
             dim=-1,
         )
-        task(env).dr_ratios.copy_(torch.where(reset_mask[:, None], ratios, task(env).dr_ratios))
+        task(env).dr_ratios[env_ids] = ratios[env_ids]
 
 
 class VelocityDisturbance(ManagerTermBase):
@@ -304,17 +314,16 @@ class VelocityDisturbance(ManagerTermBase):
         mask &= env.episode_length_buf * env.step_dt >= min_episode_s
         if not bool(mask.any()):
             return
-        direction = env.rng.normal(size=(int(mask.sum()), 3)).to(env.device)
+        direction = env.rng.standard_normal((int(mask.sum()), 3)).to(env.device)
         direction = direction / torch.linalg.vector_norm(direction, dim=-1, keepdim=True).clamp_min(
             1e-9
         )
-        progress = torch.clamp(
-            (env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0.0, 1.0
-        )
-        curr_max = speed_range[0] + (speed_range[1] - speed_range[0]) * progress * state.adaptive
+        progress = min(max((env.common_step_counter / max(total_steps, 1) - 0.05) / 0.8, 0.0), 1.0)
+        ramp = progress * state.adaptive
+        curr_max = max(speed_range[0], speed_range[0] + (speed_range[1] - speed_range[0]) * ramp)
         speed = uniform_sample(
             env.rng,
-            (speed_range[0], torch.maximum(torch.tensor(speed_range[0]), curr_max)),
+            (speed_range[0], curr_max),
             (int(mask.sum()), 1),
             env.device,
         )
