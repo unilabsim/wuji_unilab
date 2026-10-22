@@ -3,7 +3,7 @@
 # Copyright 2026 Wuji Technology Co., Ltd. Apache-2.0.
 """Reorientation signals with termination-owned cage state."""
 
-import numpy as np
+import torch
 from unilab.managers import ManagerTermBase
 
 from .commands import task
@@ -13,82 +13,140 @@ from .math import conjugate, rotate
 class CageDrop(ManagerTermBase):
     def __init__(self, cfg, env):
         super().__init__(env)
+        self.state = task(env)
+
+    @property
+    def tensor_body_names(self) -> tuple[str, ...]:
+        return self.state.robot.body_names
+
+    @property
+    def entity_name(self) -> str:
+        return "robot"
+
+    @property
+    def tensor_state_entity(self) -> str:
+        return "robot"
 
     def __call__(self, env, margin: float = 0.01, max_outside_steps: int = 10):
-        state = task(env)
+        state = self.state
         p, q = state.palm_pose()
-        local = rotate(conjugate(q)[:, None, :], state.robot.data.body_link_pos_w - p[:, None, :])
-        cube = rotate(conjugate(q), state.cube.data.root_link_pos_w - p)
-        low = local.min(axis=1) - np.array([margin, margin, margin])
-        high = local.max(axis=1) + np.array([margin, margin, 0.03])
-        state.outside[:] = np.any((cube < low) | (cube > high), axis=-1)
-        state.cage_counter[:] = np.clip(
-            state.cage_counter + np.where(state.outside, 1, -0.5), 0, 15
+        robot_bodies = env.scene.read_plan.body_tensor_view("robot", self.state.robot.body_names)
+        cube = env.scene.read_plan.body_tensor_view("object", (state.cube_name,))
+        local = rotate(conjugate(q)[:, None, :], robot_bodies.pos_w - p[:, None, :])
+        cube_local = rotate(conjugate(q), cube.pos_w[:, 0] - p)
+        low = local.amin(dim=1) - torch.tensor(
+            (margin, margin, margin), device=env.device, dtype=torch.float32
         )
-        return state.cage_counter >= max_outside_steps
+        high = local.amax(dim=1) + torch.tensor(
+            (margin, margin, 0.03), device=env.device, dtype=torch.float32
+        )
+        state.outside.copy_(torch.any((cube_local < low) | (cube_local > high), dim=-1))
+        state.cage_counter.copy_(
+            torch.clamp(state.cage_counter + torch.where(state.outside, 1.0, -0.5), 0.0, 15.0)
+        )
+        return state.cage_counter > max_outside_steps
 
 
 def reward(env, kind: str):
     state = task(env)
     if kind in ("orientation", "orientation_alignment"):
-        return np.clip(1 - np.maximum(state.error() - 0.2, 0) / np.pi, 0, 1)
+        excess_error = torch.maximum(state.error() - 0.2, torch.zeros_like(state.error()))
+        return torch.clamp(1 - excess_error / torch.pi, 0.0, 1.0)
     if kind == "hand_pose":
-        return np.square(state.robot.data.joint_pos - state.robot.data.default_joint_pos).sum(
-            axis=-1
+        joints = env.scene.read_plan.joint_tensor_view("robot")
+        return torch.square(joints.joint_pos - state.robot.data.default_joint_pos(env.device)).sum(
+            dim=-1
         )
     if kind == "action_rate":
         a = env.action_manager
-        return np.square(a.action - a.prev_action).sum(axis=-1) + np.square(
+        return torch.square(a.action - a.prev_action).sum(dim=-1) + torch.square(
             a.action - 2 * a.prev_action + a.prev_prev_action
-        ).sum(axis=-1)
-    if kind == "torque":
-        force = state.views["actuator_force"].read()
-        return np.square(force / state.actuator_force_limits).sum(axis=-1)
-    if kind == "tip_slide":
-        velocity = state.views["tip_velocity"].read().reshape(env.num_envs, 5, 3)
-        rel = velocity - state.cube.data.root_link_lin_vel_w[:, None, :]
-        found = state.views["tips_found"].read() > 0
-        return (np.linalg.norm(rel, axis=-1) * found).sum(axis=-1)
+        ).sum(dim=-1)
     if kind in ("cage", "cage_escape"):
-        return state.outside * state.cage_counter / 10 * 4
-    if kind in ("collision", "finger_collision"):
-        return (state.views["self_found"].read() > 0).sum(axis=-1).astype(np.float32)
+        return state.outside.float() * state.cage_counter / 10 * 4
     if kind in ("hold", "hold_escalation"):
-        return ((state.window > 0) & state.within).astype(np.float32) * state.reward_timer
-    if kind == "palm_detach":
-        return (
-            (state.views["distal_found"].read() > 0).any(axis=-1)
-            & ~(state.views["proximal_found"].read() > 0).any(axis=-1)
-        ).astype(np.float32)
+        return ((state.window > 0) & state.within).float() * state.reward_timer
     raise ValueError(f"Unknown Wuji reward: {kind}")
+
+
+class SensorFeatureReward(ManagerTermBase):
+    """Reward-function adapter that publishes its packed sensor read contract."""
+
+    def __init__(self, cfg, env):
+        super().__init__(env)
+        self.cfg = cfg
+        self.state = task(env)
+        kind = cfg.params["kind"]
+        supported = {
+            "torque": ("actuator_force",),
+            "tip_slide": ("tip_velocity",),
+            "finger_collision": ("self_found",),
+            "palm_detach": ("distal_found", "proximal_found"),
+        }
+        if kind not in supported:
+            raise ValueError(f"Unknown Wuji sensor reward: {kind}")
+        self.kind = kind
+        self.sensor_keys = supported[kind]
+        self.sensor_names = tuple(
+            name for key in self.sensor_keys for name in self.state.sensor_groups[key]
+        )
+        dimensions = tuple(self._env.scene.bind_sensor_data(self.sensor_names).dimensions)
+        for name, dimension in zip(self.sensor_names, dimensions, strict=True):
+            self.state.sensor_dimensions[name] = int(dimension)
+
+    @property
+    def tensor_sensor_names(self) -> tuple[str, ...]:
+        return self.sensor_names
+
+    def __call__(self, env, **kwargs):
+        del env, kwargs
+        state = self.state
+        if self.kind == "torque":
+            force = state.sensor_values("actuator_force")
+            return torch.square(force / state.actuator_force_limits).sum(dim=-1)
+        if self.kind == "tip_slide":
+            velocity = state.sensor_values("tip_velocity").reshape(self.num_envs, 5, 3)
+            relative_velocity = velocity - state.cube_velocity()[:, None, :]
+            contact = state.sensor_values("tips_found") > 0
+            return (torch.linalg.vector_norm(relative_velocity, dim=-1) * contact).sum(dim=-1)
+        if self.kind == "finger_collision":
+            return (state.sensor_values("self_found") > 0).float().sum(dim=-1)
+        return (
+            (state.sensor_values("distal_found") > 0).any(dim=-1)
+            & ~(state.sensor_values("proximal_found") > 0).any(dim=-1)
+        ).float()
+
+
+def _resolve_rows(env, env_ids):
+    """Normalize the Manager curriculum row selector (``None`` or full slice)."""
+    if env_ids is None or isinstance(env_ids, slice):
+        return slice(None), env.num_envs > 0
+    return env_ids, env_ids.numel() > 0
 
 
 def success_curriculum(
     env,
-    env_ids,
+    env_ids=None,
     count_threshold: int = 3,
     delta_per_loop: float = 0.08,
 ):
     state = task(env)
-    ids = np.arange(env.num_envs) if env_ids is None else env_ids
-    applied_delta = 0.0
-    if len(ids):
-        successes = state.goal_count[ids] >= count_threshold
-        applied_delta = float(delta_per_loop * np.where(successes, 1, -1).sum() / env.num_envs)
-        state.difficulty = float(np.clip(state.difficulty + applied_delta, 0, 1))
-    else:
-        successes = np.zeros(0, dtype=bool)
+    rows, has_rows = _resolve_rows(env, env_ids)
+    successes = state.goal_count >= count_threshold
+    applied_delta = float(delta_per_loop * torch.where(successes, 1.0, -1.0).sum() / env.num_envs)
+    state.difficulty = float(min(max(state.difficulty + applied_delta, 0.0), 1.0))
+    goal_count = state.goal_count.float()
     return {
         "value": state.difficulty,
-        "mean_goal_reach_count": float(np.mean(state.goal_count[ids])) if len(ids) else 0.0,
-        "success_env_frac": float(np.mean(successes)) if len(ids) else 0.0,
+        "mean_goal_reach_count": float(goal_count[rows].mean()) if has_rows else 0.0,
+        "success_env_frac": float(successes[rows].float().mean()) if has_rows else 0.0,
         "delta": applied_delta,
     }
 
 
 def adaptive_episode_curriculum(
     env,
-    env_ids,
+    env_ids=None,
     target_steps: int = 800,
     inc_rate: float = 0.1,
     dec_rate: float = 0.2,
@@ -96,26 +154,26 @@ def adaptive_episode_curriculum(
     drop_gamma: float = 1.0,
 ):
     state = task(env)
-    ids = np.arange(env.num_envs) if env_ids is None else env_ids
-    applied_delta = 0.0
-    progress = np.zeros(len(ids), dtype=np.float32)
-    reached = np.zeros(len(ids), dtype=bool)
-    dropped = np.zeros(len(ids), dtype=bool)
-    if len(ids):
-        progress = np.minimum(env.episode_length_buf[ids] / target_steps, 1)
-        reached = progress >= 1
-        dropped = env.termination_manager.terminated[ids] & ~reached
-        applied_delta = float(
-            (reached * inc_rate - dropped * np.power(1 - progress, drop_gamma) * dec_rate).sum()
-            / env.num_envs
-        )
-        state.adaptive = float(np.clip(state.adaptive + applied_delta, min_scale, 1))
+    rows, has_rows = _resolve_rows(env, env_ids)
+    progress = torch.clamp(env.episode_length_buf / target_steps, max=1.0)
+    reached = progress >= 1
+    dropped = env.termination_manager.terminated & ~reached
+    applied_delta = float(
+        (
+            reached.float() * inc_rate
+            - dropped.float() * torch.pow(1 - progress, drop_gamma) * dec_rate
+        ).sum()
+        / env.num_envs
+    )
+    state.adaptive = float(min(max(state.adaptive + applied_delta, min_scale), 1.0))
     return {
         "value": state.adaptive,
-        "mean_episode_steps": float(np.mean(env.episode_length_buf[ids])) if len(ids) else 0.0,
-        "mean_progress": float(np.mean(progress)) if len(ids) else 0.0,
-        "reached_target_frac": float(np.mean(reached)) if len(ids) else 0.0,
-        "early_drop_frac": float(np.mean(dropped)) if len(ids) else 0.0,
+        "mean_episode_steps": float(env.episode_length_buf[rows].float().mean())
+        if has_rows
+        else 0.0,
+        "mean_progress": float(progress[rows].mean()) if has_rows else 0.0,
+        "reached_target_frac": float(reached[rows].float().mean()) if has_rows else 0.0,
+        "early_drop_frac": float(dropped[rows].float().mean()) if has_rows else 0.0,
         "target_steps": float(target_steps),
         "delta": applied_delta,
     }
@@ -124,38 +182,47 @@ def adaptive_episode_curriculum(
 def metric(env, kind: str):
     state = task(env)
     if kind in ("success", "goal_reach_count"):
-        return state.goal_count.astype(np.float32)
+        return state.goal_count.float()
     if kind == "orientation_error":
         return state.error()
     if kind == "survival":
-        return env.episode_length_buf.astype(np.float32) * env.step_dt
+        return env.episode_length_buf.float() * env.step_dt
     if kind == "cube_survival_steps":
-        return env.episode_length_buf.astype(np.float32)
+        return env.episode_length_buf.float()
     if kind in ("tips_contact", "fingertip_contact_count"):
-        return (state.views["tips_found"].read() > 0).sum(axis=-1).astype(np.float32)
+        return (state.sensor_values("tips_found") > 0).float().sum(dim=-1)
     if kind in ("cage", "cage_escape_frequency"):
-        return (state.cage_counter > 0).astype(np.float32)
+        return (state.cage_counter > 0).float()
     if kind in ("joint_velocity_rms", "joint_vel_rms"):
-        return np.sqrt(np.square(state.robot.data.joint_vel).mean(axis=-1))
+        joints = env.scene.read_plan.joint_tensor_view("robot").joint_vel
+        return torch.sqrt(torch.square(joints).mean(dim=-1))
     if kind == "torque_rms":
-        return np.sqrt(np.square(state.views["actuator_force"].read()).mean(axis=-1))
+        force = state.sensor_values("actuator_force")
+        return torch.sqrt(torch.square(force).mean(dim=-1))
     if kind == "action_delta_rms":
-        return np.sqrt(
-            np.square(env.action_manager.action - env.action_manager.prev_action).mean(axis=-1)
-        )
+        action = env.action_manager
+        delta = action.action - action.prev_action
+        return torch.sqrt(torch.square(delta).mean(dim=-1))
     if kind in ("cube_height", "cube_height_above_palm"):
         p, q = state.palm_pose()
-        return rotate(conjugate(q), state.cube.data.root_link_pos_w - p)[:, 2]
+        cube = state.cube_tag()[0]
+        return rotate(conjugate(q), cube - p)[:, 2]
     if kind == "action_jerk_rms":
-        a = env.action_manager
-        jerk = a.action - 2 * a.prev_action + a.prev_prev_action
-        return np.sqrt(np.square(jerk).mean(axis=-1))
+        action = env.action_manager
+        jerk = action.action - 2 * action.prev_action + action.prev_prev_action
+        return torch.sqrt(torch.square(jerk).mean(dim=-1))
     if kind == "success_interval":
-        return state.goal_timer.astype(np.float32)
+        return state.goal_timer.float()
     if kind == "torque_saturation_ratio":
-        force = np.abs(state.views["actuator_force"].read())
-        return (force >= 0.9 * state.actuator_force_limits).mean(axis=-1)
+        force = torch.abs(state.sensor_values("actuator_force"))
+        return (force >= 0.9 * state.actuator_force_limits).float().mean(dim=-1)
     if kind == "finger_collision_frequency":
-        found = state.views["self_found"].read() > 0
-        return found.any(axis=-1).astype(np.float32)
+        found = state.sensor_values("self_found") > 0
+        return found.any(dim=-1).float()
+    if kind == "difficulty":
+        return torch.full((env.num_envs,), state.difficulty, device=env.device)
+    if kind == "adaptive":
+        return torch.full((env.num_envs,), state.adaptive, device=env.device)
+    if kind == "success_rate":
+        return (state.goal_count > 0).float()
     raise ValueError(f"Unknown Wuji metric: {kind}")

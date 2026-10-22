@@ -11,17 +11,15 @@ from typing import Any, cast
 import numpy as np
 import torch
 import warp as wp
-from uni_rl.algos.rsl_rl import normalize_ppo_train_cfg
-from uni_rl.algos.rsl_rl_training_state import TrainingStateOnPolicyRunner
 from unilab.base import registry
-from unilab.base.config_adapter import BackendAdapter
+from unilab.base.config_adapter import EnvConfigAdapter
 from unilab.envs import ManagerBasedRlEnv
 from unilab.training import algo_config_dict
 from unilab.visualization.playback_session import SnapshotPlaybackSession
 from unisim.backend.base import CameraCfg
 
 from wuji_unilab.config import compose_task
-from wuji_unilab.rl.runtime import WujiWrapper
+from wuji_unilab.rl.runtime import WujiOnPolicyRunner, WujiWrapper
 from wuji_unilab.tasks.reorient.commands import task
 from wuji_unilab.tasks.reorient.math import angle_error, random_quaternions
 from wuji_unilab.tasks.reorient.overlay import goal_overlay_getter
@@ -100,26 +98,29 @@ def _require_record_capabilities(env: ManagerBasedRlEnv) -> None:
         )
 
 
-def _sample_separated_goal(rng: np.random.Generator, current: np.ndarray) -> np.ndarray:
+def _sample_separated_goal(rng: np.random.Generator, current: torch.Tensor) -> torch.Tensor:
+    current = current.detach().cpu()
     for _ in range(1000):
-        goal = random_quaternions(rng, 1)[0]
-        if angle_error(goal[None], current[None])[0] >= np.pi / 2:
-            return goal
+        goal = random_quaternions(rng, 1)
+        if angle_error(goal, current[None].expand_as(goal))[0] >= np.pi / 2:
+            return goal[0]
     raise RuntimeError("Failed to sample an SO(3) goal at least 90 degrees away")
 
 
 def _refresh_policy_observation(
     env: ManagerBasedRlEnv, wrapper: WujiWrapper, *, reset_history: bool
 ):
-    """Refresh history after a manually selected trial goal."""
-    env_ids = np.array([0], dtype=np.int32) if reset_history else None
-    if env_ids is not None:
+    """Refresh fixed-shape observations after a manually selected trial goal."""
+    if reset_history:
+        env_ids = torch.zeros(1, dtype=torch.long, device=env.device)
         env.observation_manager.reset(env_ids)
-    groups = env.observation_manager.compute(update_history=True, env_ids=env_ids)
+        groups = env.observation_manager.compute(update_history=True, env_ids=env_ids)
+    else:
+        groups = env.observation_manager.compute(update_history=True)
     env_cfg = cast(Any, env.cfg)
     policy_group = groups[env_cfg.policy_observation_group]
     critic_group = groups[env_cfg.critic_observation_group]
-    if not isinstance(policy_group, np.ndarray) or not isinstance(critic_group, np.ndarray):
+    if not isinstance(policy_group, torch.Tensor) or not isinstance(critic_group, torch.Tensor):
         raise TypeError("Wuji evaluation requires concatenated policy and critic observations")
     assert env.state is not None
     env.state.obs["obs"][:] = policy_group
@@ -141,7 +142,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         args.task,
         overrides=["algo.num_envs=1", "training.play_only=true"],
     )
-    override = BackendAdapter(
+    override = EnvConfigAdapter(
         cfg, root_dir=Path.cwd(), algo_name="ppo"
     ).build_play_env_cfg_override()
     # Trial outcomes own timeout/drop decisions. Environment auto-termination
@@ -166,9 +167,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         if args.record:
             _require_record_capabilities(env)
             session = SnapshotPlaybackSession(env, overlay_getter=goal_overlay_getter(env))
-        runner = TrainingStateOnPolicyRunner(
-            wrapper, normalize_ppo_train_cfg(algo_config_dict(cfg)), device="cuda:0"
-        )
+        runner = WujiOnPolicyRunner(wrapper, algo_config_dict(cfg), device="cuda:0")
         runner.load(str(args.checkpoint_file), map_location="cuda:0")
         policy = runner.get_inference_policy(device="cuda:0")
         obs, _ = wrapper.reset()
@@ -176,15 +175,16 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         state = task(env)
         state.cfg.success_threshold = args.success_threshold
         state.cfg.success_hold_steps = args.success_hold_steps
-        drop_reference_z = float(state.cube.data.root_link_pos_w[0, 2])
+        drop_reference_z = float(state.cube_position()[0, 2])
         for trial_idx in range(args.num_trials):
             did_reset = reset_before_trial
             if did_reset:
                 obs, _ = wrapper.reset()
-                drop_reference_z = float(task(env).cube.data.root_link_pos_w[0, 2])
+                drop_reference_z = float(task(env).cube_position()[0, 2])
             state = task(env)
-            current = state.cube_tag()[1][0]
-            state.goal[0] = _sample_separated_goal(rng, current)
+            state.goal[0] = _sample_separated_goal(rng, state.cube_tag()[1][0]).to(
+                device=state.goal.device, dtype=state.goal.dtype
+            )
             state.hold[0] = 0
             state.goal_timer[0] = 0
             state.window[0] = 0
@@ -214,9 +214,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                         first_success = step * env.step_dt
                         status = "success"
                         break
-                    if float(state.cube.data.root_link_pos_w[0, 2]) < (
-                        drop_reference_z + args.drop_height
-                    ):
+                    if float(state.cube_position()[0, 2]) < (drop_reference_z + args.drop_height):
                         status = "drop"
                         break
             reset_before_trial = status != "success"

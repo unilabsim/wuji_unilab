@@ -10,15 +10,13 @@ from typing import cast
 import numpy as np
 import torch
 import warp as wp
-from uni_rl.algos.rsl_rl import normalize_ppo_train_cfg
-from uni_rl.algos.rsl_rl_training_state import TrainingStateOnPolicyRunner
 from unilab.base import registry
 from unilab.envs import ManagerBasedRlEnv
 from unilab.training import algo_config_dict
 from unilab.training.onnx_export import export_policy_onnx, verify_policy_onnx
 
 from wuji_unilab.config import compose_task, env_overrides
-from wuji_unilab.rl.runtime import WujiWrapper
+from wuji_unilab.rl.runtime import WujiOnPolicyRunner, WujiWrapper
 
 EXPORT_BATCH_SIZE = 1
 
@@ -87,9 +85,7 @@ def main() -> None:
     )
     wrapper = WujiWrapper(env, device="cuda:0")
     try:
-        runner = TrainingStateOnPolicyRunner(
-            wrapper, normalize_ppo_train_cfg(algo_config_dict(cfg)), device="cuda:0"
-        )
+        runner = WujiOnPolicyRunner(wrapper, algo_config_dict(cfg), device="cuda:0")
         runner.load(str(args.checkpoint_file), map_location="cuda:0")
         actor = runner.alg.get_policy()
         module = actor.as_onnx(verbose=False).eval()

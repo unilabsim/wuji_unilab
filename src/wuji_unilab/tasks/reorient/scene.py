@@ -195,12 +195,12 @@ def materialize_scene() -> SceneDescription:
     path = cache / "scene.xml"
     with tempfile.NamedTemporaryFile(mode="w", dir=cache, suffix=".xml", delete=False) as stream:
         stream.write(payload)
-        temporary = Path(stream.name)
+        staged_path = Path(stream.name)
     try:
-        model = mujoco.MjModel.from_xml_path(str(temporary))
+        model = mujoco.MjModel.from_xml_path(str(staged_path))
         if (model.nq, model.nv, model.nu, model.nmocap) != (27, 26, 20, 1):
             raise ValueError("Unexpected Wuji model dimensions")
-        temporary.replace(path)
+        staged_path.replace(path)
     finally:
-        temporary.unlink(missing_ok=True)
+        staged_path.unlink(missing_ok=True)
     return SceneDescription(path, groups)
