@@ -1,0 +1,1 @@
+"""SuperMimic Hydra configuration."""

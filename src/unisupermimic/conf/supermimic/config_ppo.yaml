@@ -1,0 +1,62 @@
+# Native rsl_rl configuration for the migrated Hand 2 task.
+# The existing ``config.yaml`` remains the G1 world-model entrypoint; this
+# file deliberately selects UniLab's standard PPO runner instead.
+defaults:
+  - _self_
+  - task: dex_hand2_reorient/mujoco
+
+algo:
+  algo: ppo
+  algo_log_name: hand2_ppo
+  num_envs: 1024
+  max_iterations: 5000
+  num_steps_per_env: 40
+  save_interval: 50
+  seed: 42
+  experiment_name: dex_hand2_reorient
+  load_run: "-1"
+  checkpoint: -1
+  obs_groups:
+    default: [actor]
+    actor: [actor]
+    critic: [critic]
+  actor:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims: [512, 256, 128]
+    activation: elu
+    obs_normalization: true
+    distribution_cfg:
+      class_name: rsl_rl.modules:GaussianDistribution
+      init_std: 0.5
+  critic:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims: [512, 512, 256, 128]
+    activation: elu
+    obs_normalization: true
+  algorithm:
+    class_name: rsl_rl.algorithms:PPO
+    value_loss_coef: 0.5
+    use_clipped_value_loss: false
+    clip_param: 0.2
+    entropy_coef: 0.001
+    num_learning_epochs: 4
+    num_mini_batches: 32
+    learning_rate: 1.0e-4
+    schedule: fixed
+    gamma: 0.99
+    lam: 0.95
+    max_grad_norm: 1.0
+
+training:
+  task_name: DexHand2Reorient
+  sim_backend: mujoco
+  device: cpu
+  logger: tensorboard
+  tf32_matmul: ieee
+  play_only: false
+  no_play: true
+  play_env_num: 4
+  play_steps: 200
+  log_root: logs
+  log_interval: 50
+  num_timesteps: 0

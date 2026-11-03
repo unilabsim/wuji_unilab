@@ -1,0 +1,383 @@
+# @package _global_
+# Wuji Hand 2 cube reorientation, migrated from Dex-Supermimic/mjlab.
+env:
+  seed: 42
+  scene:
+    model_file: ${hand2_scene:}
+    default_keyframe_name: home
+    entities:
+      robot:
+        root_body_name: robot/right_palm_link
+        joint_names: &hand2_joints
+          - robot/right_finger1_joint1
+          - robot/right_finger1_joint2
+          - robot/right_finger1_joint3
+          - robot/right_finger1_joint4
+          - robot/right_finger2_joint1
+          - robot/right_finger2_joint2
+          - robot/right_finger2_joint3
+          - robot/right_finger2_joint4
+          - robot/right_finger3_joint1
+          - robot/right_finger3_joint2
+          - robot/right_finger3_joint3
+          - robot/right_finger3_joint4
+          - robot/right_finger4_joint1
+          - robot/right_finger4_joint2
+          - robot/right_finger4_joint3
+          - robot/right_finger4_joint4
+          - robot/right_finger5_joint1
+          - robot/right_finger5_joint2
+          - robot/right_finger5_joint3
+          - robot/right_finger5_joint4
+        actuator_names: &hand2_actuators
+          - robot/right_finger1_joint1_actuator
+          - robot/right_finger1_joint2_actuator
+          - robot/right_finger1_joint3_actuator
+          - robot/right_finger1_joint4_actuator
+          - robot/right_finger2_joint1_actuator
+          - robot/right_finger2_joint2_actuator
+          - robot/right_finger2_joint3_actuator
+          - robot/right_finger2_joint4_actuator
+          - robot/right_finger3_joint1_actuator
+          - robot/right_finger3_joint2_actuator
+          - robot/right_finger3_joint3_actuator
+          - robot/right_finger3_joint4_actuator
+          - robot/right_finger4_joint1_actuator
+          - robot/right_finger4_joint2_actuator
+          - robot/right_finger4_joint3_actuator
+          - robot/right_finger4_joint4_actuator
+          - robot/right_finger5_joint1_actuator
+          - robot/right_finger5_joint2_actuator
+          - robot/right_finger5_joint3_actuator
+          - robot/right_finger5_joint4_actuator
+        body_names:
+          - robot/right_palm_link
+          - robot/right_wrist_tag_frame
+          - robot/right_finger1_link1
+          - robot/right_finger1_link2
+          - robot/right_finger1_link3
+          - robot/right_finger1_link4
+          - robot/right_finger2_link1
+          - robot/right_finger2_link2
+          - robot/right_finger2_link3
+          - robot/right_finger2_link4
+          - robot/right_finger3_link1
+          - robot/right_finger3_link2
+          - robot/right_finger3_link3
+          - robot/right_finger3_link4
+          - robot/right_finger4_link1
+          - robot/right_finger4_link2
+          - robot/right_finger4_link3
+          - robot/right_finger4_link4
+          - robot/right_finger5_link1
+          - robot/right_finger5_link2
+          - robot/right_finger5_link3
+          - robot/right_finger5_link4
+      object:
+        root_body_name: object/cube
+        body_names: [object/cube]
+  sim_dt: 0.01
+  ctrl_dt: 0.05
+  max_episode_seconds: 50.0
+  auto_reset: true
+  scale_rewards_by_dt: true
+  observations:
+    policy:
+      enable_corruption: true
+      terms:
+        joint:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: joint}
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.06
+            n_max: 0.06
+        target_error:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: target_error}
+          history_length: 3
+        position:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: position, injection_prob: 0.02}
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.UniformNoiseCfg
+            n_min: -0.008
+            n_max: 0.008
+        orientation:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: orientation, injection_prob: 0.02}
+          history_length: 3
+          noise:
+            _target_: unilab.managers._noise.GaussianNoiseCfg
+            std: 0.05
+        action:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: action}
+          history_length: 3
+    critic:
+      enable_corruption: false
+      terms:
+        joint:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: joint}
+          history_length: 3
+        target_error:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: target_error}
+          history_length: 3
+        position:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: position}
+          history_length: 3
+        orientation:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: orientation}
+          history_length: 3
+        action:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: action}
+          history_length: 3
+        qpos:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: qpos}
+          history_length: 3
+        qvel:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: qvel}
+          history_length: 3
+        tips:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.TipsFeature
+          history_length: 3
+          scale: 5.0
+        clean_position:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: position}
+        clean_orientation:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: orientation}
+        clean_linvel:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: linvel}
+        clean_angvel:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.CubeFeature
+          params: {kind: angvel}
+        clean_force_direction:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: force_direction}
+        clean_perturbation:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: perturbation}
+        clean_progress:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: progress}
+        clean_cage:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: cage}
+        clean_dr:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.feature
+          params: {kind: dr}
+        clean_palm:
+          func: unisupermimic.tasks.dex_reorient.hand2.observations.PalmFeature
+  actions:
+    joint_pos:
+      _target_: unisupermimic.tasks.dex_reorient.hand2.actions.WujiActionCfg
+      entity_name: robot
+      action_scale: 0.5
+      ema_alpha: 0.5
+      warmup_time_s: 0.4
+      soft_limit_factor: 1.0
+  commands:
+    reorient:
+      _target_: unisupermimic.tasks.dex_reorient.hand2.commands.Hand2ReorientCommandCfg
+      entity_name: robot
+      object_name: object
+      resampling_time_range: [1000000.0, 1000000.0]
+      success_threshold: 0.2
+      success_hold_steps: 5
+      goal_switch_delay: 20
+  events:
+    reset:
+      func: unisupermimic.tasks.dex_reorient.hand2.events.ResetWuji
+      mode: reset
+      params:
+        soft_limit_factor: 1.0
+        joint_noise: [-0.3, -0.1]
+        cube_noise: 0.01
+        wrist_pitch: [-0.4, 0.1]
+    reset_disturbance_caches:
+      func: unisupermimic.tasks.dex_reorient.hand2.events.ResetDisturbanceCaches
+      mode: reset
+    randomize:
+      func: unisupermimic.tasks.dex_reorient.hand2.events.FixedRandomization
+      mode: reset
+      params:
+        total_steps: 200000
+        ranges:
+          friction: [0.7, 1.3]
+          hand_size: [0.97, 1.03]
+          solref:
+            "0": [1.0, 2.0]
+            "1": [0.8, 1.2]
+          solimp_palm:
+            "0": [0.5, 1.0]
+            "2": [2.0, 5.0]
+          solimp_fingers:
+            "0": [0.5, 1.0]
+            "2": [1.0, 2.0]
+          cube_size: [0.85, 1.15]
+          cube_mass: [0.4, 1.6]
+          cube_com: [-0.003, 0.003]
+          hand_mass: [0.4, 1.5]
+          hand_inertia: [0.4, 1.5]
+          damping: [0.3, 3.0]
+          armature: [0.75, 1.3]
+          frictionloss: [0.5, 2.0]
+          kp: [0.75, 1.5]
+          kd: [0.5, 2.0]
+          encoder: [-0.01, 0.01]
+    disturbance:
+      func: unisupermimic.tasks.dex_reorient.hand2.events.VelocityDisturbance
+      mode: interval
+      interval_range_s: [0.6, 1.8]
+      params:
+        speed_range: [0.05, 0.15]
+        min_episode_s: 3.0
+        total_steps: 200000
+        warmup_frac: 0.05
+        rampup_frac: 0.80
+        adaptive_curriculum_term: adaptive_episode
+        use_time_ramp: true
+  terminations:
+    time_out:
+      func: unilab.envs.mdp.time_out
+      time_out: true
+    cage_drop:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.CageDrop
+      # Hand 2's palm normal is its local Y axis (the hand1 recipe uses X).
+      params: {margin: 0.01, max_outside_steps: 10, up_axis: 1, up_margin: 0.03}
+    nan_guard:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.nan_detection
+  policy_observation_group: policy
+  critic_observation_group: critic
+
+  curriculum:
+    success_curriculum:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.success_curriculum
+      params:
+        count_threshold: 3
+        delta_per_loop: 0.08
+    adaptive_episode:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.adaptive_episode_curriculum
+      params:
+        target_steps: 800
+        inc_rate: 0.1
+        dec_rate: 0.2
+        min_scale: 0.05
+        drop_gamma: 1.0
+  metrics:
+    goal_reach_count:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: goal_reach_count}
+      reduce: mean
+    orientation_error:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: orientation_error}
+      reduce: mean
+    cube_survival_steps:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: cube_survival_steps}
+      reduce: mean
+    action_delta_rms:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: action_delta_rms}
+      reduce: mean
+    action_jerk_rms:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: action_jerk_rms}
+      reduce: mean
+    cage_escape_frequency:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: cage_escape_frequency}
+      reduce: mean
+    fingertip_contact_count:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: fingertip_contact_count}
+      reduce: mean
+    torque_saturation_ratio:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: torque_saturation_ratio}
+      reduce: mean
+    joint_acceleration_rms:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: joint_acceleration_rms}
+      reduce: mean
+    cube_height_above_palm:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: cube_height_above_palm}
+      reduce: mean
+    finger_collision_frequency:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: finger_collision_frequency}
+      reduce: mean
+    palm_detach_frequency:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: palm_detach_frequency}
+      reduce: mean
+    success_interval:
+      func: unisupermimic.tasks.dex_reorient.hand2.rewards.metric
+      params: {kind: success_interval}
+      reduce: mean
+
+reward:
+  orientation_alignment:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: 15.0
+    params: {kind: orientation_alignment}
+  hand_pose:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -0.2
+    params: {kind: hand_pose}
+  action_rate:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -1.0
+    params: {kind: action_rate}
+  hold_escalation:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: 11.4
+    params: {kind: hold_escalation}
+  action_hf:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -30.0
+    params: {kind: action_hf}
+  torque:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -24.0
+    params: {kind: torque}
+  cage_escape:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -500.0
+    params: {kind: cage_escape, max_outside_steps: 10, drop_scale: 4.0, up_axis: 1, max_count: 15.0}
+  finger_collision:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -1.0
+    params: {kind: finger_collision}
+  tip_slide:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: -0.3
+    params: {kind: tip_slide}
+  palm_detach:
+    func: unisupermimic.tasks.dex_reorient.hand2.rewards.reward
+    weight: 0.5
+    params: {kind: palm_detach}
+
+
+algo:
+  algo: ppo
+  num_envs: 1024
+  seed: 42
+
+training:
+  task_name: DexHand2Reorient
+  sim_backend: mjwarp

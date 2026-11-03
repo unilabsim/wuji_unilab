@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - /task/dex_hand2_reorient/base
+  - _self_
+env:
+  events:
+    # MuJoCo host bridge does not expose the mutable geom/body namespaces used
+    # by FixedRandomization or interval root velocity deltas; retain reset
+    # events for CPU smoke.
+    randomize: null
+    disturbance: null
+training:
+  sim_backend: mujoco

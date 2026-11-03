@@ -1,0 +1,139 @@
+# @package _global_
+# Hand 2 SuperMimic world-model recipe.  The environment is deliberately
+# selected here instead of relying on the G1 default in ``config.yaml``.
+defaults:
+  - task: dex_hand2_reorient/mujoco
+  - _self_
+
+# Dex-SuperMimic's Hand 2 recipe runs at 50 Hz (20 ms control steps).  The
+# native PPO migration keeps its separate UniLab configuration and timing.
+env:
+  ctrl_dt: 0.02
+  # SuperMimic keeps the terminal transition in replay and resets selected
+  # rows explicitly in its collector; PPO uses a separate autoreset path.
+  auto_reset: false
+  commands:
+    reorient:
+      success_hold_steps: 13
+      goal_switch_delay: 50
+  actions:
+    joint_pos:
+      ema_alpha: 0.3
+  terminations:
+    cage_drop:
+      params:
+        max_outside_steps: 25
+        max_count: 37.5
+  observations:
+    critic:
+      # The source SuperMimic critic reconstructs one clean privileged frame
+      # during imagination.  The native PPO task keeps its three-frame critic
+      # history in the separate config_ppo recipe.
+      terms:
+        joint: {history_length: 1}
+        target_error: {history_length: 1}
+        position: {history_length: 1}
+        orientation: {history_length: 1}
+        action: {history_length: 1}
+        qpos: {history_length: 1}
+        qvel: {history_length: 1}
+        tips: {history_length: 1}
+        clean_position: {history_length: 1}
+        clean_orientation: {history_length: 1}
+        clean_linvel: {history_length: 1}
+        clean_angvel: {history_length: 1}
+        clean_force_direction: {history_length: 1}
+        clean_perturbation: {history_length: 1}
+        clean_progress: {history_length: 1}
+        clean_cage:
+          history_length: 1
+          params:
+            max_outside_steps: 25
+        clean_dr: {history_length: 1}
+        clean_palm: {history_length: 1}
+  curriculum:
+    adaptive_episode:
+      params:
+        target_steps: 2000
+reward:
+  action_rate:
+    weight: 0.0
+  action_hf:
+    weight: -30.0
+  hold_escalation:
+    weight: 4.694
+  cage_escape:
+    params:
+      max_outside_steps: 25
+      max_count: 37.5
+
+algo:
+  algo: supermimic_hand2
+  algo_log_name: supermimic_hand2
+  seed: 42
+  num_envs: 1024
+  iterations: 8000
+  buffer_steps: 1000
+  holdout_fraction: 0.1
+  wm_failure_frac: 0.25
+  wm_failure_horizon: 16
+  failure_head: true
+  failure_hidden: [256, 128]
+  failure_warmup_iters: 300
+  failure_clip: 0.1
+  disturbance_prob_scale: 1.0
+  disturbance_min_speed: 0.05
+  disturbance_max_speed: 0.15
+  disturbance_start_s: 3.0
+  utd: 0.4
+  final_state_weight: 1.0
+  contact_weight: 0.1
+  horizon: 32
+  goal_frames: 1
+  hist: 3
+  z_dim: 32
+  wm_hidden: [2048, 2048, 2048]
+  policy_hidden: [512, 256, 128]
+  critic_hidden: [512, 512, 256, 128]
+  wm_window: 8
+  wm_batches: 10
+  wm_batch: 2048
+  pi_batch: 1024
+  lr: 2.0e-4
+  no_sync: true
+  pi_ema: 0.0
+  gamma: 0.99
+  lam: 0.95
+  action_noise: 0.1
+  critic_epochs: 5
+  critic_minibatches: 4
+  ckpt_every: 1000
+  resume: null
+  no_critic: false
+  warmup_steps: 64
+  wm_only_iters: 500
+  lr_decay_iters: 250000
+  log_every: 50
+  log_backend: tensorboard
+  compile: false
+  amp: true
+  test_hidden_dims: null
+
+training:
+  task_name: DexHand2Reorient
+  sim_backend: mujoco
+  collector_tensor_device: cpu
+  play_only: false
+  no_play: true
+  log_root: null
+  log_dir: null
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
+  job_logging:
+    root:
+      handlers: [console]
