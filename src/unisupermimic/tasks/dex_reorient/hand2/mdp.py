@@ -537,6 +537,93 @@ class Hand2SuperMimicMDP:
         )
         return out
 
+    def _critic_feature_tensors(
+        self,
+        state: torch.Tensor,
+        memory: Mapping[str, torch.Tensor] | torch.Tensor,
+        auxiliary: torch.Tensor,
+        normalized_context: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+        """Build critic features and their finite checks without a host sync.
+
+        The runner can compile this tensor-only boundary and keep exception
+        reporting in :meth:`_validate_critic_features`.  Returning the named
+        inputs/intermediates preserves the detailed diagnostics on failure;
+        the normal path needs only the aggregated scalar check.
+        """
+        m = self._memory(memory)
+        q, qd, _p, _rotation, v, w = _parts(state)
+        if auxiliary.shape[-1] < 21:
+            auxiliary = torch.cat(
+                (auxiliary, q.new_zeros((*q.shape[:-1], 21 - auxiliary.shape[-1]))), -1
+            )
+        palm_rot = auxiliary[..., 3:12].reshape(*q.shape[:-1], 3, 3)
+        perturb_dir, perturb = auxiliary[..., 12:15], auxiliary[..., 15:21]
+        checks = {"state": state, "context": normalized_context, "auxiliary": auxiliary}
+        for name, value in m.items():
+            checks[f"memory.{name}"] = value
+        policy = self.obs(state, m, auxiliary)
+        checks["policy"] = policy
+        # Tip FK is not required by the environment contract; callers with a
+        # kinematics implementation may pass a 15D tip slice in auxiliary.
+        tips = (
+            (self.privileged_tip_positions(state, auxiliary) - q.new_tensor((0.0, 0.0, 0.5)))
+            .mul(self.tip_scale)
+            .flatten(-2)
+        )
+        progress = torch.cat(
+            (
+                m["hold"] / self.hold_steps,
+                m["reward_window"] / self.switch_steps,
+                m["age"] / 2500.0,
+                m["count"],
+            ),
+            -1,
+        )
+        palm_linear_velocity = matvec(palm_rot, v)
+        palm_angular_velocity = matvec(palm_rot, w)
+        checks["palm_linear_velocity"] = palm_linear_velocity
+        checks["palm_angular_velocity"] = palm_angular_velocity
+        current = torch.cat(
+            (
+                policy[..., 40:49],
+                palm_linear_velocity,
+                palm_angular_velocity,
+                perturb_dir,
+                perturb,
+                progress,
+                (m["cage"] / self.max_outside).clamp(max=1.0),
+                normalized_context[..., :6],
+                palm_rot[..., 1:, :].flatten(-2),
+            ),
+            -1,
+        )
+        checks["critic_current"] = current
+        base = torch.cat((policy, q - self.default, qd - self.default_joint_vel, tips), -1)
+        frame = torch.cat((base, current), -1)
+        checks["critic_frame"] = frame
+        if frame.shape[-1] != 165:
+            raise RuntimeError(f"Hand2 critic frame must have width 165, got {frame.shape[-1]}")
+        if normalized_context.shape[-1] != CONTEXT_DIM:
+            raise ValueError(f"Hand2 context must have width {CONTEXT_DIM}")
+        finite = torch.stack([torch.isfinite(value).all() for value in checks.values()]).all()
+        return torch.cat((frame, normalized_context), -1), finite, checks
+
+    @staticmethod
+    def _validate_critic_features(finite: torch.Tensor, checks: Mapping[str, torch.Tensor]) -> None:
+        """Synchronize once, locating the original offending field on failure."""
+        if bool(finite):
+            return
+        for name, value in checks.items():
+            if not bool(torch.isfinite(value).all()):
+                finite_values = value.detach()[torch.isfinite(value)]
+                max_value = (
+                    float(finite_values.abs().max()) if finite_values.numel() else float("nan")
+                )
+                raise FloatingPointError(
+                    f"Hand2 critic feature '{name}' contains NaN/Inf (finite_absmax={max_value})"
+                )
+
     def critic_features(
         self,
         state: torch.Tensor,
@@ -545,53 +632,11 @@ class Hand2SuperMimicMDP:
         normalized_context: torch.Tensor,
     ) -> torch.Tensor:
         """Return source privileged frame (165D) plus simulator context (46D)."""
-        m = self._memory(memory)
-        q, qd, _p, rotation, v, w = _parts(state)
-        if auxiliary.shape[-1] < 21:
-            auxiliary = torch.cat((auxiliary, q.new_zeros((*q.shape[:-1], 21 - auxiliary.shape[-1]))), -1)
-        palm_rot = auxiliary[..., 3:12].reshape(*q.shape[:-1], 3, 3)
-        perturb_dir, perturb = auxiliary[..., 12:15], auxiliary[..., 15:21]
-        def finite(name: str, value: torch.Tensor) -> torch.Tensor:
-            if not bool(torch.isfinite(value).all()):
-                finite_values = value[torch.isfinite(value)]
-                # This diagnostic is reached during differentiable imagination
-                # as well as during collection.  Detach before reducing to a
-                # Python scalar so inspecting a bad feature does not add an
-                # autograd edge (or emit a requires_grad warning).
-                max_value = (
-                    float(finite_values.detach().abs().max())
-                    if finite_values.numel()
-                    else float("nan")
-                )
-                raise FloatingPointError(
-                    f"Hand2 critic feature '{name}' contains NaN/Inf "
-                    f"(finite_absmax={max_value})"
-                )
-            return value
-
-        finite("state", state)
-        finite("context", normalized_context)
-        finite("auxiliary", auxiliary)
-        for name, value in m.items():
-            finite(f"memory.{name}", value)
-        policy = finite("policy", self.obs(state, m, auxiliary))
-        # Tip FK is not required by the environment contract; callers with a
-        # kinematics implementation may pass a 15D tip slice in auxiliary.
-        tips = (
-            (self.privileged_tip_positions(state, auxiliary) - q.new_tensor((0.0, 0.0, 0.5)))
-            .mul(self.tip_scale)
-            .flatten(-2)
+        features, finite, checks = self._critic_feature_tensors(
+            state, memory, auxiliary, normalized_context
         )
-        progress = torch.cat((m["hold"] / self.hold_steps, m["reward_window"] / self.switch_steps, m["age"] / 2500.0, m["count"]), -1)
-        current = torch.cat((policy[..., 40:49], finite("palm_linear_velocity", matvec(palm_rot, v)), finite("palm_angular_velocity", matvec(palm_rot, w)), perturb_dir, perturb, progress, (m["cage"] / self.max_outside).clamp(max=1.0), normalized_context[..., :6], palm_rot[..., 1:, :].flatten(-2)), -1)
-        finite("critic_current", current)
-        base = torch.cat((policy, q - self.default, qd - self.default_joint_vel, tips), -1)
-        frame = finite("critic_frame", torch.cat((base, current), -1))
-        if frame.shape[-1] != 165:
-            raise RuntimeError(f"Hand2 critic frame must have width 165, got {frame.shape[-1]}")
-        if normalized_context.shape[-1] != CONTEXT_DIM:
-            raise ValueError(f"Hand2 context must have width {CONTEXT_DIM}")
-        return torch.cat((frame, normalized_context), -1)
+        self._validate_critic_features(finite, checks)
+        return features
 
     def task_features(
         self,

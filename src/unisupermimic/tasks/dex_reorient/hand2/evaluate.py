@@ -377,6 +377,17 @@ def main(argv: list[str] | None = None) -> None:
                 f"algo.num_envs={args.num_envs}",
             ],
         )
+    cfg.env.events.randomize = None
+
+    cfg.env.events.disturbance = None
+
+    cfg.env.observations.policy.enable_corruption = False
+
+    cfg.env.observations.policy.terms.position.params.injection_prob = 0.0
+    cfg.env.observations.policy.terms.orientation.params.injection_prob = 0.0
+
+    cfg.env.curriculum = {}
+
     override = EnvConfigAdapter(
         cfg, root_dir=Path.cwd(), algo_name="supermimic_hand2"
     ).build_task_env_cfg_override()
@@ -411,8 +422,9 @@ def main(argv: list[str] | None = None) -> None:
             checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
             saved_cfg = checkpoint.get("config", {})
             hidden = tuple(saved_cfg.get("policy_hidden", (512, 256, 128)))
-            actor = Hand2Actor(hidden).to(env.device)
-            actor.load_state_dict(checkpoint["modules"]["actor"])
+            actor = Hand2Actor.from_checkpoint(
+                checkpoint["modules"]["actor"], hidden
+            ).to(env.device)
             actor.eval()
         num_envs = int(args.num_envs)
         metrics = Hand2EvalMetrics(num_envs, device=env.device)

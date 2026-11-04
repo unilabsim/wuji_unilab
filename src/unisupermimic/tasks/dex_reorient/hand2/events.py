@@ -9,15 +9,17 @@ import numpy as np
 import torch
 from unilab.base.reset_selectors import ResetMaskBuffer
 from unilab.managers import ManagerTermBase
+from unilab.managers.reset_owner import ResetOwner
 
 from .commands import task
-from .math import multiply, random_quaternions, soft_limits, uniform_sample
+from .math import multiply, random_quaternions, rotate, soft_limits, uniform_sample
 from .reset_bridge import (
     bind_mocap_reset,
     reset_backend,
     write_geom_sizes,
     write_mocap_reset,
 )
+from .scene import _CALIBRATED_MOUNT_POS
 
 
 class ResetWuji(ManagerTermBase):
@@ -51,6 +53,7 @@ class ResetWuji(ManagerTermBase):
         )
         self.offset_ids = self.robot.find_joints("robot/right_finger[1-5]_joint[134]")[0]
         self._reset_mask = ResetMaskBuffer(env.num_envs, env.device)
+        self._pending_mocap = None
 
     def __call__(
         self,
@@ -62,6 +65,8 @@ class ResetWuji(ManagerTermBase):
         wrist_pitch: tuple,
     ):
         del soft_limit_factor
+        if env_ids.numel() == 0:
+            return
         reset_mask = self._reset_mask.scatter(env_ids)
         joint = self.default.repeat(env.num_envs, 1)
         selected = torch.tensor(self.offset_ids, device=joint.device, dtype=torch.long)
@@ -75,8 +80,17 @@ class ResetWuji(ManagerTermBase):
             angle = uniform_sample(env.rng, wrist_pitch, (env.num_envs,), env.device)
             zeros = torch.zeros_like(angle)
             rotation = torch.stack((torch.cos(angle / 2), zeros, torch.sin(angle / 2), zeros), dim=-1)
-            poses[:, 3:] = multiply(poses[:, 3:], rotation)
-            write_mocap_reset(self.pose, env_ids, poses)
+            # Hand2 pitches about world Y through the calibrated mount.
+            # The default palm maps local Y onto world Z, so right-multiplying
+            # would spin about the palm normal instead of tilting the wrist.
+            pivot = poses.new_tensor(_CALIBRATED_MOUNT_POS).expand(env.num_envs, -1)
+            center = poses[:, :3] + rotate(poses[:, 3:], pivot)
+            poses[:, :3] = center + rotate(rotation, poses[:, :3] - center)
+            poses[:, 3:] = multiply(rotation, poses[:, 3:])
+            # MJWarp's subsequent packed qpos/qvel commit calls reset_data,
+            # which resets mocap too. Publish only after that commit, before
+            # the Manager refreshes poses, goals and reset observations.
+            self._pending_mocap = (env_ids.clone(), poses)
         state = self.cube.data.default_root_state(env.device).clone()
         if state.ndim >= 2 and state.shape[0] == 1 and env.num_envs != 1:
             state = state.repeat(env.num_envs, 1)
@@ -86,6 +100,29 @@ class ResetWuji(ManagerTermBase):
         state[:, 3:7] = random_quaternions(env.rng, env.num_envs, device=env.device)
         state[:, 7:] = 0
         self.cube.write_root_state_tensor_to_sim(state, reset_mask)
+
+    def commit_mocap_reset(self) -> None:
+        """Flush the selected pose rows after the ordinary reset commit."""
+        if self._pending_mocap is not None:
+            env_ids, poses = self._pending_mocap
+            write_mocap_reset(self.pose, env_ids, poses)
+            self._pending_mocap = None
+
+
+class CommitHand2MocapReset(ResetOwner):
+    """Use UniLab's post-commit hook without replacing any Manager resets."""
+
+    def reset_transaction(self, env_ids: torch.Tensor) -> dict[str, float]:
+        return {}
+
+    def reset_committed(self, env_ids: torch.Tensor) -> dict[str, float]:
+        for name in self._env.event_manager.active_terms.get("reset", ()):
+            term = self._env.event_manager.get_term_cfg(name).func
+            if isinstance(term, ResetWuji):
+                # Binding.write uploads mocap and runs forward at the final
+                # joint/cube state. The Manager refreshes its read plan next.
+                term.commit_mocap_reset()
+        return {}
 
 
 class ResetDisturbanceCaches(ManagerTermBase):
@@ -141,6 +178,9 @@ class FixedRandomization(ManagerTermBase):
             ("robot/.*palm_.*", "robot/.*finger.*_col")
         )[0]
         hand_ids = r.find_bodies("robot/.*")[0]
+        # The visual cube stays fixed in the reference recipe. Only the
+        # collision box participates in the physical object-size variation.
+        cube_collision_ids = o.find_geoms("object/cube")[0]
         self.bindings["friction"] = (
             r,
             *r.bind_geom_friction_write(friction_ids, term_name=term),
@@ -179,7 +219,7 @@ class FixedRandomization(ManagerTermBase):
         )
         self.bindings["cube_size"] = (
             o,
-            *o.bind_geom_size_write(term_name=term),
+            *o.bind_geom_size_write(cube_collision_ids, term_name=term),
             o.write_geom_size_to_sim,
             "geom_ids",
         )
@@ -245,7 +285,23 @@ class FixedRandomization(ManagerTermBase):
         # NumPy-backed fields. They are model metadata, not per-environment state.
         default = default[0] if default.ndim >= 3 else default
         shape = (env.num_envs, *default.shape)
-        if name == "cube_inertia":
+        if name == "friction":
+            # mjlab's geom_friction defaults to tangential friction (axis 0).
+            # Torsional/rolling coefficients stay at their model defaults.
+            factor = torch.ones(shape, device=self.device)
+            factor[..., 0] = uniform_sample(
+                env.rng, ranges[name], shape[:-1], self.device
+            )
+        elif name in ("hand_size", "cube_size"):
+            # One isotropic factor per environment, shared by all selected
+            # geoms and axes, matches randomize_geom_size_uniform upstream.
+            # Independent axes would introduce hidden shape variables that
+            # the single size summary in xi cannot describe.
+            factor = uniform_sample(
+                env.rng, ranges[name], (env.num_envs,) + (1,) * default.ndim, self.device
+            )
+            self.ratios[name] = factor.reshape(env.num_envs, 1)
+        elif name == "cube_inertia":
             factor = self.ratios["cube_mass"][..., None]
         elif name == "cube_com":
             self.samples[name] = default + uniform_sample(env.rng, ranges[name], shape, self.device)
@@ -262,8 +318,11 @@ class FixedRandomization(ManagerTermBase):
             param_ranges = ranges[range_name]
             factor = torch.ones(shape, device=self.device)
             for component, bounds in param_ranges.items():
+                # Each parameter shares one factor across its contact group
+                # in each environment; palm/thumb and other fingers are
+                # still sampled independently by their separate bindings.
                 factor[..., int(component)] = uniform_sample(
-                    env.rng, bounds, shape[:-1], self.device
+                    env.rng, bounds, (env.num_envs, 1), self.device
                 )
         else:
             bounds = ranges[name]
@@ -283,6 +342,17 @@ class FixedRandomization(ManagerTermBase):
             if default.ndim == 3:
                 factor = factor[..., None]
         self.samples[name] = default * factor
+        if name == "friction":
+            self.ratios[name] = (
+                self.samples[name][..., 0] / default[..., 0].clamp_min(1.0e-8)
+            ).reshape(env.num_envs, -1).float()
+        if name == "damping":
+            # The privileged source observation measures the actual ratio,
+            # not the sampled multiplier. Scaling a default zero damping
+            # leaves it at zero, so its context contribution must be zero.
+            self.ratios[name] = (
+                self.samples[name] / default.clamp_min(1.0e-8)
+            ).reshape(env.num_envs, -1).float()
 
     def __call__(self, env, env_ids: torch.Tensor, ranges: dict, total_steps: int):
         del total_steps

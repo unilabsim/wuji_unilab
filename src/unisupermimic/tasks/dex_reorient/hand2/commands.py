@@ -311,24 +311,17 @@ class Hand2ReorientCommand(CommandTerm):
     def tip_velocity_tensor(self) -> torch.Tensor:
         """Return the five MJCF tip-site linear velocities in world frame.
 
-        The source live reward reads ``site_lin_vel_w`` at the calibrated tip
-        sites.  Link-body velocities are only an approximation (and omit the
-        site offset's ``w x r`` term), so use the dedicated FRAMELINVEL
-        sensors that are registered in the scene read plan.
+        Sensor/body velocities can retain the last substep's pre-integration
+        values. Use the same integrated joint state and site-offset FK as the
+        analytic reward, then rotate its palm-frame result into world frame.
         """
-        if not self._sensor_names:
-            return self._palm_pos.new_zeros((self.num_envs, 5, 3))
-        names = tuple(f"tip_velocity_{i}" for i in range(1, 6))
-        try:
-            values = self.sensor_values(names)
-        except (RuntimeError, ValueError):
-            return self._palm_pos.new_zeros((self.num_envs, 5, 3))
-        if values.shape[-1] != 15:
-            raise RuntimeError(
-                "Hand2 tip velocity sensors must expose 15 values, "
-                f"got {values.shape[-1]}"
-            )
-        return values.reshape(self.num_envs, 5, 3)
+        if self._read_plan is None:
+            raise RuntimeError("Hand2 tip velocities require a refreshed scene tensor read phase")
+        joints = self._read_plan.joint_tensor_view("robot")
+        kinematics = self.mdp.kinematics
+        _, velocities = kinematics.tips(kinematics.forward(joints.joint_pos, joints.joint_vel))
+        palm = self._read_plan.body_tensor_view("robot", (self.palm_name,))
+        return rotate(palm.quat_w.expand(-1, velocities.shape[-2], -1), velocities)
 
     def torque_tensor(self) -> torch.Tensor:
         if not self._sensor_names:
@@ -505,6 +498,12 @@ class Hand2ReorientCommand(CommandTerm):
     def post_compute_reset(self) -> None:
         self._pose_stale = True
 
+    def post_compute(self) -> None:
+        # UniLab refreshes the read plane after committed command-side writes
+        # and invokes this hook before observations. Cache only within a read
+        # phase; a reset/command commit may have changed the underlying pose.
+        self._pose_stale = True
+
     def _resample_command(self, reset_mask: torch.Tensor, *, reset_snapshot: bool = True) -> None:
         # The reference samples a goal uniformly in the wrist-tag frame and
         # stores the resulting world-frame quaternion.  Sampling directly in
@@ -561,6 +560,7 @@ class Hand2ReorientCommand(CommandTerm):
             torch.where(self.window == 0, torch.zeros_like(self.hold), self.hold),
         ))
         succeeded = approaching & (self.hold >= self.cfg.success_hold_steps)
+        self.hold.masked_fill_(succeeded, 0)
         in_window = ~approaching | succeeded
         reward_window_timer = torch.where(
             in_window, self.window + 1, torch.zeros_like(self.window)

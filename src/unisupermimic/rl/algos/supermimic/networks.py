@@ -93,12 +93,7 @@ class RunningNorm(nn.Module):
 
 
 class EmpiricalNorm(nn.Module):
-    """Online empirical normalizer used by the source SuperMimic actor.
-
-    This is the rsl-rl update rule used by Dex-SuperMimic's ``Actor``.  It is
-    intentionally separate from :class:`RunningNorm`, which remains the
-    source contract for the WM, failure head and value critic.
-    """
+    """rsl-rl empirical normalization for legacy/PPO checkpoint compatibility."""
 
     def __init__(self, dim: int, eps: float = 1.0e-2):
         super().__init__()

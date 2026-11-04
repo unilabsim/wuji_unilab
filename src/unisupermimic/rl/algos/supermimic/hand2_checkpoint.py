@@ -21,6 +21,9 @@ import torch
 from torch import nn
 
 CHECKPOINT_FORMAT_VERSION = 1
+# The tensor envelope is unchanged; the training data/controller contract is
+# versioned independently so old, mislabelled replay cannot silently resume.
+HAND2_TRAINING_CONTRACT_VERSION = 2
 
 
 def _rng_state() -> dict[str, Any]:
@@ -154,12 +157,21 @@ def load_hand2_checkpoint(
     optimizers: Mapping[str, torch.optim.Optimizer] | None = None,
     map_location: str | torch.device = "cpu",
     restore_rng: bool = True,
+    required_training_contract: int | None = None,
 ) -> dict[str, Any]:
     """Load model/optimizer state and return runner state for resumption."""
     state = torch.load(path, map_location=map_location, weights_only=False)
     version = state.get("format_version")
     if version != CHECKPOINT_FORMAT_VERSION:
         raise ValueError(f"Unsupported Hand2 checkpoint format {version!r}")
+    if required_training_contract is not None:
+        contract = state.get("extra", {}).get("training_contract_version")
+        if contract != required_training_contract:
+            raise ValueError(
+                "Hand2 checkpoint predates the corrected actuator/DR/normalization "
+                "training contract. Start a fresh run with algo.resume=null and a new "
+                "training.log_dir. Legacy actor weights remain loadable for evaluation."
+            )
     saved_modules = state.get("modules", {})
     for name, module in modules.items():
         if name not in saved_modules:
@@ -222,6 +234,7 @@ class Hand2CSVLogger:
 
 __all__ = [
     "CHECKPOINT_FORMAT_VERSION",
+    "HAND2_TRAINING_CONTRACT_VERSION",
     "Hand2CSVLogger",
     "load_hand2_checkpoint",
     "restore_rng_state",

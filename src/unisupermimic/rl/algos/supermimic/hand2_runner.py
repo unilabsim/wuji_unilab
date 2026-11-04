@@ -13,7 +13,9 @@ from __future__ import annotations
 import json
 import math
 import time
+from copy import deepcopy
 from dataclasses import asdict, dataclass
+from inspect import signature
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +34,31 @@ from unisupermimic.tasks.dex_reorient.hand2.mdp import (
 )
 from unisupermimic.tasks.dex_reorient.hand2.memory import flatten_memory, unflatten_memory
 
-from .hand2_checkpoint import Hand2CSVLogger, load_hand2_checkpoint, save_hand2_checkpoint
+from .hand2_checkpoint import (
+    HAND2_TRAINING_CONTRACT_VERSION,
+    Hand2CSVLogger,
+    load_hand2_checkpoint,
+    save_hand2_checkpoint,
+)
 from .hand2_failure import Hand2FailureHead
 from .hand2_replay import Hand2ReplayBuffer
+
+
+def _format_duration(seconds: float) -> str:
+    """Format a wall-clock duration for terminal progress output."""
+    if not math.isfinite(seconds) or seconds < 0:
+        return "--"
+    total = int(round(seconds))
+    days, remainder = divmod(total, 24 * 60 * 60)
+    hours, remainder = divmod(remainder, 60 * 60)
+    minutes, secs = divmod(remainder, 60)
+    if days:
+        return f"{days}d {hours:02d}h"
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
 
 
 @dataclass
@@ -82,6 +106,8 @@ class Hand2SuperMimicConfig:
     resume: str | None = None
     seed: int = 0
     compile: bool = False
+    compile_mode: str = "default"
+    compile_recompile_limit: int = 64
     amp: bool = True
     log_every: int = 10
 
@@ -135,18 +161,26 @@ class Hand2WorldModel(nn.Module):
 
 
 class Hand2Actor(nn.Module):
-    def __init__(self, hidden=(512, 256, 128)):
+    def __init__(self, hidden=(512, 256, 128), *, legacy_empirical: bool = False):
         super().__init__()
-        # Dex-SuperMimic's actor uses the same rsl-rl empirical normalizer as
-        # the source ``Actor``.  The WM/failure/critic retain RunningNorm;
-        # using that different update rule here changes the policy scale as
-        # soon as imagination starts.
-        self.norm = EmpiricalNorm(OBS_DIM * 3)
+        # The reference SuperMimic Actor uses RunningNorm. EmpiricalNorm is
+        # only for evaluating old migrated/PPO checkpoints with their exact
+        # original denominator; never reinterpret those statistics as running.
+        self.norm = (
+            EmpiricalNorm(OBS_DIM * 3) if legacy_empirical else RunningNorm(OBS_DIM * 3)
+        )
         self.net = mlp(OBS_DIM * 3, hidden, 20)
         output = self.net[-1]
         assert isinstance(output, nn.Linear)
         nn.init.orthogonal_(output.weight, gain=0.01)
         nn.init.zeros_(output.bias)
+
+    @classmethod
+    def from_checkpoint(cls, state_dict, hidden=(512, 256, 128)) -> "Hand2Actor":
+        """Load either actor layout for playback, preserving its normalization."""
+        actor = cls(hidden, legacy_empirical="norm._mean" in state_dict)
+        actor.load_state_dict(state_dict)
+        return actor
 
     @staticmethod
     def flatten_history(history: torch.Tensor) -> torch.Tensor:
@@ -259,6 +293,7 @@ class Hand2SuperMimicRunner:
         self._collect_step_acc = 0.0
         self.critic_loss = torch.zeros((), device=self.device)
         self.resumed = False
+        self._pending_environment_schedule: dict[str, Any] | None = None
         if cfg.resume:
             state = load_hand2_checkpoint(
                 cfg.resume,
@@ -271,20 +306,138 @@ class Hand2SuperMimicRunner:
                 # let module/replay loaders transfer only their destination
                 # tensors.
                 map_location="cpu",
+                required_training_contract=HAND2_TRAINING_CONTRACT_VERSION,
             )
-            replay_state = state.get("replay")
-            if isinstance(replay_state, dict):
-                self.replay.load_state_dict(replay_state)
             self.iteration = int(state.get("iteration", 0))
             self.sim_steps = int(state.get("sim_steps", 0))
             self._collect_step_acc = float(state.get("extra", {}).get("collect_step_acc", 0.0))
-            self.obs = state.get("obs")
-            self.obs_history = state.get("obs_history")
-            if self.obs is not None:
-                self.obs = self.obs.to(self.device)
-            if self.obs_history is not None:
-                self.obs_history = self.obs_history.to(self.device)
-            self.resumed = self.replay.time_size > 0 and self.obs is not None and self.obs_history is not None
+            self._pending_environment_schedule = state.get("extra", {}).get("environment", {})
+            self._restore_environment_schedule(self._pending_environment_schedule)
+            # Checkpoints are learner/schedule states, not simulator snapshots.
+            # Refill replay from the current randomized worlds and reset actor
+            # observations instead of applying a stale observation to new qpos.
+            self.resumed = True
+
+        # Keep the original modules for normalizer updates, optimizers and
+        # checkpoint state_dicts. Compile only tensor computation; replay,
+        # simulator calls and the finite-value guards stay in eager Python.
+        self._wm_forward = self._compile(self.wm.forward)
+        self._actor_forward = self._compile(self.actor.forward)
+        self._critic_forward = self._compile(self.critic.forward)
+        self._failure_forward = self._compile(self.failure.forward)
+        self._integrate_state_fn = self._compile(self.mdp.integrate_state)
+        self._state_error_fn = self._compile(self.mdp.state_error)
+        self._control_target_fn = self._compile(self.mdp.control_target)
+        self._reward_fn = self._compile(self.mdp.reward)
+        self._cage_fn = self._compile(self.mdp._cage)
+        self._advance_memory_fn = self._compile(self.mdp.advance_memory)
+        self._obs_fn = self._compile(self.mdp.obs)
+        self._critic_feature_tensors_fn = self._compile(self.mdp._critic_feature_tensors)
+
+    def _environment_schedule(self) -> dict[str, Any]:
+        export = getattr(self.env, "export_training_state", None)
+        counter = int(getattr(self.env, "common_step_counter", 0))
+        result: dict[str, Any] = {
+            "runtime": export() if callable(export) else {"version": 1, "step_counter": counter},
+        }
+        curriculum = getattr(self.env, "curriculum_manager", None)
+        result["curriculum"] = deepcopy(getattr(curriculum, "_curriculum_state", {}))
+        manager = getattr(self.env, "command_manager", None)
+        command = manager.get_term("reorient") if manager is not None else None
+        if command is not None:
+            result["adaptive"] = float(getattr(command, "adaptive", 0.05))
+            result["difficulty"] = float(getattr(command, "difficulty", 0.0))
+        return result
+
+    def _restore_environment_schedule(self, state: dict[str, Any]) -> None:
+        runtime = state.get("runtime")
+        if runtime is not None:
+            restore = getattr(self.env, "import_training_state", None)
+            if callable(restore):
+                restore(runtime)
+            else:
+                self.env.common_step_counter = int(runtime["step_counter"])
+                self.env.step_counter = int(runtime["step_counter"])
+        manager = getattr(self.env, "command_manager", None)
+        if manager is not None:
+            command = manager.get_term("reorient")
+            if "adaptive" in state:
+                command.adaptive = float(state["adaptive"])
+            if "difficulty" in state:
+                command.difficulty = float(state["difficulty"])
+                self.env._reorient_success_curriculum = command.difficulty
+        curriculum = getattr(self.env, "curriculum_manager", None)
+        values = getattr(curriculum, "_curriculum_state", None)
+        if isinstance(values, dict):
+            values.update(deepcopy(state.get("curriculum", {})))
+            # Real interval pushes read the manager carrier, while imagined
+            # pushes read the command. A synthetic reset must not leave them
+            # at different adaptive scales until the next episode reset.
+            for term, field in (
+                ("adaptive_episode", "adaptive"),
+                ("success_curriculum", "difficulty"),
+            ):
+                if term in values and field in state:
+                    previous = values[term]
+                    values[term] = {
+                        **(previous if isinstance(previous, dict) else {}),
+                        "value": float(state[field]),
+                    }
+
+    def _compile(self, function):
+        if not self.cfg.compile:
+            return function
+        limit = self.cfg.compile_recompile_limit
+        if limit < 1:
+            raise ValueError("algo.compile_recompile_limit must be positive")
+        options = (
+            {"backend": "aot_eager"}
+            if self.device.type == "mps"
+            else {"mode": self.cfg.compile_mode}
+        )
+        # Real collection, holdout, supervised WM windows and actor rollouts
+        # legitimately differ in grad state, tensor strides and batch sizes.
+        # Keep their finite set of variants without detaching the actor's
+        # recurrent graph or exhausting Dynamo's default eight-entry budget.
+        parameters = signature(torch.compile).parameters
+        if "recompile_limit" in parameters and "isolate_recompiles" in parameters:
+            return torch.compile(
+                function, **options, recompile_limit=limit, isolate_recompiles=True
+            )
+        # Older supported PyTorch versions lack per-region compile arguments.
+        # Apply the older config only while invoking this compiled function;
+        # leave the process-wide setting unchanged outside the call.
+        from torch._dynamo import config as dynamo_config
+
+        key = (
+            "recompile_limit"
+            if hasattr(dynamo_config, "recompile_limit")
+            else "cache_size_limit"
+        )
+        compiled = torch.compile(function, **options)
+        return dynamo_config.patch(**{key: limit})(compiled)
+
+    def _critic_features(self, state, memory, auxiliary, context):
+        features, finite, checks = self._critic_feature_tensors_fn(
+            state, memory, auxiliary, context
+        )
+        self.mdp._validate_critic_features(finite, checks)
+        return features
+
+    def _task_features(self, state, memory, auxiliary, context):
+        # FailureHead expects [simulator context, privileged frame], while
+        # the value critic expects the opposite order.
+        critic = self._critic_features(state, memory, auxiliary, context)
+        return torch.cat((context, critic[..., :165]), -1)
+
+    def _sync_mdp_calibration(self) -> None:
+        # A CPU collector / CUDA learner holds separate MDP tensors. Reset
+        # resolves the tag pose after runner construction, so copy its final
+        # calibration into the learner instead of retaining initial zeros.
+        source = self.env.supermimic_mdp
+        if source is not self.mdp:
+            self.mdp.tag_pos.copy_(source.tag_pos.to(self.device))
+            self.mdp.tag_rot.copy_(source.tag_rot.to(self.device))
 
     @staticmethod
     def _auxiliary(env) -> torch.Tensor:
@@ -500,6 +653,8 @@ class Hand2SuperMimicRunner:
             "termination_rate": [],
             "actor_input_rms": [],
             "actor_normalized_input_rms": [],
+            "reward_parity": [],
+            "cage_parity": [],
         }
 
         def masked_mean(value: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -515,6 +670,12 @@ class Hand2SuperMimicRunner:
 
         if self.obs is None:
             reset_obs = self.env.reset()[0]
+            if self._pending_environment_schedule is not None:
+                # The synthetic reset/refill is not a completed episode and
+                # must not alter the restored curriculum or global counter.
+                self._restore_environment_schedule(self._pending_environment_schedule)
+                self._pending_environment_schedule = None
+            self._sync_mdp_calibration()
             packed = reset_obs.get("policy", reset_obs.get("obs")).to(self.device)
             if packed.shape[-1] != OBS_DIM * 3:
                 raise ValueError(
@@ -528,7 +689,7 @@ class Hand2SuperMimicRunner:
             if not bool(torch.isfinite(self.obs_history).all()):
                 raise FloatingPointError("Hand2 policy observation history contains NaN or Inf")
             self.actor.norm.update(self.obs)
-            policy_action = self.actor(self.obs)
+            policy_action = self._actor_forward(self.obs)
             if not bool(torch.isfinite(policy_action).all()):
                 raise FloatingPointError("Hand2 actor produced NaN or Inf action")
             action = (policy_action + self.cfg.action_noise * torch.randn_like(policy_action)).clamp(-1, 1)
@@ -572,18 +733,38 @@ class Hand2SuperMimicRunner:
                 self.wm.inputs(state0, target0, context0, disturbance0)[train_slice]
             )
             self.wm.out_norm.update(self.mdp.world_model_targets(state0, state1)[train_slice])
+            check_reward = self.iteration % max(self.cfg.log_every, 1) == 0
+            if self.cfg.failure_head or check_reward:
+                # Match the reference hard post-physics memory, before an
+                # interval event or a live command goal switch. Live m1 can
+                # already contain a new goal and is not this WM boundary.
+                pre_memory = unflatten_memory(
+                    flatten_memory(transition["m"]).detach().to(self.device)
+                )
+                controller_target = transition["m1"]["c1"].detach().to(self.device)
+                _, next_cage = self._cage_fn(state1, pre_memory["cage"], soft=False)
+                post_memory = self._advance_memory_fn(
+                    state1, pre_memory, action, controller_target, next_cage,
+                    pre_memory["goal"].reshape(-1, 3, 3), soft=False,
+                )
             if self.cfg.failure_head:
-                # FailureHead follows the source contract and is normalized
-                # on the complete post-step task context (simulator context
-                # plus privileged frame), rather than the 46-D WM context.
-                post_memory = unflatten_memory(transition["m1"].detach().to(self.device)) if isinstance(transition["m1"], torch.Tensor) else {
-                    key: value.detach().to(self.device) for key, value in transition["m1"].items()
-                }
-                failure_context = self.mdp.task_features(
+                failure_context = self._task_features(
                     state1, post_memory, auxiliary0, context0
                 )
                 self.failure.norm.update(
                     self.failure.features(state1, failure_context)[train_slice]
+                )
+            if check_reward:
+                analytic_reward = self._reward_fn(
+                    state1, pre_memory, action, controller_target,
+                    transition["contact"].to(self.device),
+                    transition["torque"].to(self.device), auxiliary0, soft=False,
+                )
+                diagnostics["reward_parity"].append(
+                    masked_mean((analytic_reward - transition["r"].to(self.device)).abs(), valid)
+                )
+                diagnostics["cage_parity"].append(
+                    masked_mean((next_cage - transition["m1"]["cage"].to(self.device)).abs(), valid)
                 )
             observed = self.env.observation_manager.compute(update_history=False)
             next_value = observed.get("policy", observed.get("obs"))
@@ -611,7 +792,7 @@ class Hand2SuperMimicRunner:
             diagnostics["policy_action_abs"].append(masked_mean(policy_action.abs(), valid))
             diagnostics["executed_action_abs"].append(masked_mean(action.abs(), valid))
             diagnostics["action_saturation"].append(masked_mean((action.abs() >= 0.999).float(), valid))
-            target_delta = transition["m1"]["u"] - transition["m"]["c1"]
+            target_delta = transition["m1"]["c1"] - transition["m"]["c1"]
             diagnostics["target_delta_rms"].append(
                 torch.sqrt(masked_mean(target_delta.square(), valid).clamp_min(0.0))
             )
@@ -678,9 +859,9 @@ class Hand2SuperMimicRunner:
             target = batch["u"][:, step]
             target_c = target + batch["bias"][:, step]
             context = batch["xi"][:, step]
-            raw_delta, contact = self.wm(state, target, context, aux[..., 12:21])
-            next_state = self.mdp.integrate_state(state, raw_delta)
-            true_error = self.mdp.state_error(next_state, batch["s1"][:, step])
+            raw_delta, contact = self._wm_forward(state, target, context, aux[..., 12:21])
+            next_state = self._integrate_state_fn(state, raw_delta)
+            true_error = self._state_error_fn(next_state, batch["s1"][:, step])
             state_loss = (true_error / std).square().mean(-1)
             contact_loss = F.binary_cross_entropy_with_logits(
                 contact, batch["contact"][:, step], reduction="none"
@@ -704,8 +885,8 @@ class Hand2SuperMimicRunner:
             # source learner while fitting a multi-step window.  This state
             # is used by the failure head and by the next imagined target;
             # it is deliberately separate from the recorded m1 snapshot.
-            _, cage = self.mdp._cage(next_state, memory["cage"], soft=True)
-            memory = self.mdp.advance_memory(
+            _, cage = self._cage_fn(next_state, memory["cage"], soft=True)
+            memory = self._advance_memory_fn(
                 next_state,
                 memory,
                 batch["a"][:, step],
@@ -715,22 +896,22 @@ class Hand2SuperMimicRunner:
                 soft=True,
             )
             if self.cfg.failure_head:
-                predicted_context = self.mdp.task_features(
+                predicted_context = self._task_features(
                     next_state.detach(), memory, aux, context
                 )
-                true_context = self.mdp.task_features(
+                true_context = self._task_features(
                     batch["s1"][:, step],
                     unflatten_memory(batch["m"][:, step]),
-                    aux,
+                    batch["aux"][:, step],
                     context,
                 )
-                predicted_failure = self.failure.predict(
-                    next_state.detach(), predicted_context.detach()
+                predicted_failure = self._failure_forward(
+                    self.failure.features(next_state.detach(), predicted_context.detach())
                 )
-                true_failure = self.failure.predict(
-                    batch["s1"][:, step], true_context.detach()
+                true_failure = self._failure_forward(
+                    self.failure.features(batch["s1"][:, step], true_context.detach())
                 )
-                failure_loss = 0.5 * (
+                failure_loss = (
                     F.binary_cross_entropy_with_logits(predicted_failure, label, reduction="none")
                     + F.binary_cross_entropy_with_logits(true_failure, label, reduction="none")
                 )
@@ -808,25 +989,25 @@ class Hand2SuperMimicRunner:
             # memory by the horizon without contributing to the actor loss;
             # retain the final feature below attached for the bootstrap
             # gradient, then detach it after that update.
-            critic_inputs.append(self.mdp.critic_features(state, memory, aux, context).detach())
-            action = self.actor(history)
+            critic_inputs.append(self._critic_features(state, memory, aux, context).detach())
+            action = self._actor_forward(history)
             if not bool(torch.isfinite(action).all()):
                 raise FloatingPointError("Hand2 imagined actor produced NaN or Inf action")
             action = action.clamp(-1.0, 1.0)
-            target, actuator_target = self.mdp.control_target(
+            target, actuator_target = self._control_target_fn(
                 action,
                 memory["c1"],
                 age=memory["age"],
                 bias=encoder_bias,
             )
-            raw_delta, contact = self.wm(state, actuator_target, context, aux[..., 12:21])
-            next_state = self.mdp.integrate_state(state, raw_delta)
+            raw_delta, contact = self._wm_forward(state, actuator_target, context, aux[..., 12:21])
+            next_state = self._integrate_state_fn(state, raw_delta)
             # A non-finite imagined state cannot yield a useful actor or
             # critic gradient.  The finite optimizer guard below skips the
             # update, while collection remains protected by action sanitizing.
             if not bool(torch.isfinite(next_state).all()):
                 raise FloatingPointError("Hand2 world-model imagination produced NaN or Inf state")
-            reward = self.mdp.reward(
+            reward = self._reward_fn(
                 next_state,
                 memory,
                 action,
@@ -836,11 +1017,11 @@ class Hand2SuperMimicRunner:
                 auxiliary=aux,
             )
             done = self.mdp.soft_termination(next_state, memory).squeeze(-1)
-            _, cage = self.mdp._cage(next_state, memory["cage"], soft=True)
+            _, cage = self._cage_fn(next_state, memory["cage"], soft=True)
             next_goal = quat_to_mat(
                 F.normalize(torch.randn(state.shape[0], 4, device=self.device), dim=-1)
             )
-            memory = self.mdp.advance_memory(
+            memory = self._advance_memory_fn(
                 next_state,
                 memory,
                 action,
@@ -853,11 +1034,11 @@ class Hand2SuperMimicRunner:
                 # As in the source runner, the failure head sees the task
                 # context after command/controller memory has advanced for
                 # this imagined transition.
-                failure_context = self.mdp.task_features(
+                failure_context = self._task_features(
                     next_state, memory, aux, context
                 )
-                failure_prob = self.failure.predict(
-                    next_state, failure_context
+                failure_prob = self._failure_forward(
+                    self.failure.features(next_state, failure_context)
                 ).sigmoid().clamp(max=self.cfg.failure_clip)
                 done = 1.0 - (1.0 - done) * (1.0 - failure_prob)
             # Apply every termination source before discounting this reward.
@@ -877,9 +1058,9 @@ class Hand2SuperMimicRunner:
             push, next_aux = self._imagined_disturbance(next_state, memory, aux)
             state = next_state + push
             aux = next_aux
-            history = torch.cat((history[:, 1:], self.mdp.add_noise(self.mdp.obs(state, memory, aux))[:, None]), 1)
-        last_critic_input = self.mdp.critic_features(state, memory, aux, context)
-        bootstrap = self.critic(last_critic_input)
+            history = torch.cat((history[:, 1:], self.mdp.add_noise(self._obs_fn(state, memory, aux))[:, None]), 1)
+        last_critic_input = self._critic_features(state, memory, aux, context)
+        bootstrap = self._critic_forward(last_critic_input)
         objective = objective + (self.cfg.gamma**self.cfg.horizon) * survival * bootstrap
         loss = -objective.mean()
         actor_ok = self._finite_optimizer_step(
@@ -910,7 +1091,7 @@ class Hand2SuperMimicRunner:
             value_inputs = torch.stack(
                 [*critic_inputs, last_critic_input], 0
             ).detach()
-            values = self.critic(value_inputs)
+            values = self._critic_forward(value_inputs)
             returns = []
             ret = values[-1]
             for index in range(self.cfg.horizon - 1, -1, -1):
@@ -935,7 +1116,7 @@ class Hand2SuperMimicRunner:
             permutation = torch.randperm(critic_x.shape[0], device=self.device)
             for index in range(minibatches):
                 indices = permutation[index * minibatch : (index + 1) * minibatch]
-                value_loss = F.mse_loss(self.critic(critic_x[indices]), critic_y[indices])
+                value_loss = F.mse_loss(self._critic_forward(critic_x[indices]), critic_y[indices])
                 if not self._finite_optimizer_step(self.critic, self.opt_critic, value_loss):
                     critic_finite = False
         self.critic_loss = value_loss.detach() if critic_finite and bool(torch.isfinite(value_loss)) else torch.zeros((), device=self.device)
@@ -950,18 +1131,34 @@ class Hand2SuperMimicRunner:
             optimizers={"wm": self.opt_wm, "actor": self.opt_actor, "critic": self.opt_critic, "failure": self.opt_failure},
             iteration=self.iteration if next_iteration is None else next_iteration,
             sim_steps=self.sim_steps,
-            replay=self.replay,
-            obs=self.obs,
-            obs_history=self.obs_history,
-            extra={"collect_step_acc": self._collect_step_acc},
+            # Physical worlds are not checkpointed. Refill replay and reset
+            # observations on resume rather than restoring unmatched state.
+            extra={
+                "training_contract_version": HAND2_TRAINING_CONTRACT_VERSION,
+                "collect_step_acc": self._collect_step_acc,
+                "environment": self._environment_schedule(),
+            },
         )
 
     def train(self) -> dict[str, float | int | bool]:
         start = time.perf_counter()
-        if not self.resumed:
+        print(
+            f"training_start iteration={self.iteration}/{self.cfg.iterations} "
+            f"compile={self.cfg.compile} eta=calculating",
+            flush=True,
+        )
+        if self.cfg.compile:
+            print(
+                "compile_status=first-use compilation may take time; "
+                "ETA will appear after the first completed iteration",
+                flush=True,
+            )
+        if self.obs is None:
             self.collect(max(self.cfg.warmup_steps, self.cfg.wm_window))
         losses = []
+        iteration_times: list[float] = []
         for iteration in range(self.iteration, self.cfg.iterations):
+            iteration_start = time.perf_counter()
             self.iteration = iteration
             # Keep the fractional UTD schedule instead of truncating 1/utd on
             # every iteration (for utd=0.4 the source alternates 2 and 3
@@ -993,7 +1190,8 @@ class Hand2SuperMimicRunner:
             holdout_loss = torch.zeros((), device=self.device)
             have_holdout = self.replay.train_end < self.replay.num_envs and iteration % self.cfg.log_every == 0
             if have_holdout:
-                holdout_loss = self.world_model_update(holdout=True)
+                with torch.no_grad():
+                    holdout_loss = self.world_model_update(holdout=True)
             pi_loss = torch.zeros((), device=self.device)
             if iteration >= self.cfg.wm_only_iters:
                 pi_loss = self.policy_update()
@@ -1009,6 +1207,14 @@ class Hand2SuperMimicRunner:
                 # semantics and is a no-op on CPU/MPS.
                 if self.device.type == "cuda":
                     torch.cuda.empty_cache()
+            iteration_time = time.perf_counter() - iteration_start
+            iteration_times.append(iteration_time)
+            # Smooth the estimate while adapting to the WM-only/joint phase.
+            recent_times = iteration_times[-20:]
+            mean_iteration_time = sum(recent_times) / len(recent_times)
+            completed = iteration + 1
+            remaining = max(self.cfg.iterations - completed, 0)
+            eta_seconds = mean_iteration_time * remaining
             self.csv_logger.log(
                 {
                     "iteration": iteration,
@@ -1020,12 +1226,20 @@ class Hand2SuperMimicRunner:
                     "pi_loss": pi_loss,
                     "critic_loss": self.critic_loss,
                     "sim_steps": self.sim_steps,
+                    "iteration_time": iteration_time,
+                    "eta_seconds": eta_seconds,
                     **collect_stats,
                 }
             )
             if iteration % self.cfg.log_every == 0:
                 holdout_text = f" holdout_wm_loss={float(holdout_loss):.6g}" if have_holdout else ""
-                print(f"iteration={iteration} wm_loss={float(wm_loss):.6g} pi_loss={float(pi_loss):.6g}{holdout_text}", flush=True)
+                print(
+                    f"iteration={iteration} wm_loss={float(wm_loss):.6g} "
+                    f"pi_loss={float(pi_loss):.6g}{holdout_text} "
+                    f"elapsed={_format_duration(time.perf_counter() - start)} "
+                    f"eta={_format_duration(eta_seconds)}",
+                    flush=True,
+                )
             if self.cfg.ckpt_every > 0 and (iteration + 1) % self.cfg.ckpt_every == 0:
                 self.save(self.log_dir / f"model_{iteration + 1}.pt", next_iteration=iteration + 1)
                 self.save(self.log_dir / "last.pt", next_iteration=iteration + 1)

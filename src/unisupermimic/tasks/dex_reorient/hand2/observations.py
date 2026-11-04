@@ -52,7 +52,7 @@ def feature(
         if limits.ndim == 3:
             limits = limits[0]
         center = limits.mean(dim=-1)
-        half = torch.clamp((limits[:, 1] - limits[:, 0]) * 0.5, min=1e-6)
+        half = (limits[:, 1] - limits[:, 0]) * 0.5 + 1e-6
         joints = plan.joint_tensor_view("robot")
         current = torch.clamp((joints.joint_pos - center) / half, -1.0, 1.0)
         if kind == "joint":

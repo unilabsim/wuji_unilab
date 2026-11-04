@@ -115,6 +115,10 @@ class Hand2SuperMimicManagerBasedRlEnv(ManagerBasedRlEnv):
         # velocity jump, matching the source runner's ``cap["physics"]``.
         if self._pre_action is None:
             raise RuntimeError("Hand2 SuperMimic update requires a preceding action snapshot")
+        # The pre-action snapshot filled the command's pose cache. The packed
+        # read plane now contains new physics, so termination/reward must see
+        # that same post-step pose rather than the preceding control state.
+        self._hand2_command._pose_stale = True
         physics_state = _clone(self._hand2_command.state_tensor())
         updated = super()._update_state_in_read_phase(state)
         command = self._hand2_command

@@ -197,6 +197,14 @@ env:
       success_threshold: 0.2
       success_hold_steps: 5
       goal_switch_delay: 20
+  reset_owners:
+    hand2_mocap:
+      _target_: unilab.managers.reset_owner.ResetOwnerCfg
+      func: unisupermimic.tasks.dex_reorient.hand2.events.CommitHand2MocapReset
+      owns_command_reset: false
+      owns_action_reset: false
+      owns_observation_reset: false
+      owns_metric_reset: false
   events:
     reset:
       func: unisupermimic.tasks.dex_reorient.hand2.events.ResetWuji

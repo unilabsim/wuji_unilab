@@ -23,8 +23,13 @@ HAND_MESH_DIR = HAND_XML.parent.parent / "meshes/right"
 CUBE_ROOT = ROOT / "src/unisupermimic/assets/objects/inhand_cube"
 JIG_TABLE = ROOT / "src/unisupermimic/assets/robots/wuji_hand2/jig_table.STL"
 
-_MOUNT_POS = (0.0, -0.1062088, 0.0178309)
-_MOUNT_QUAT = (0.541668573, -0.454527399, 0.454527399, 0.541668573)
+# The calibrated mount frame is expressed relative to the palm.  The rig
+# poses below are expressed in that calibrated frame, not directly in the
+# palm frame or the resource MJCF's actual right_mount body.
+_CALIBRATED_MOUNT_POS = (-0.0030000041, -0.000250110803, 0.0285)
+_CALIBRATED_MOUNT_QUAT = (1.0, 0.0, 0.0, -0.0000081995)
+_JIG_POS = (0.0, -0.1062088, 0.0178309)
+_JIG_QUAT = (0.541668573, -0.454527399, 0.454527399, 0.541668573)
 _TAG_POS = (0.0, 0.037408, 0.034737)
 _TAG_QUAT = (0.5, -0.5, -0.5, -0.5)
 
@@ -108,6 +113,9 @@ def materialize_scene() -> Path:
     # this checkout; callers can still select an explicit cache with
     # ``XDG_CACHE_HOME`` (the smoke tools use ``/tmp``).
     cache_inputs = (
+        # MjSpec serialization can introduce XML syntax unsupported by an
+        # older runtime sharing this cache (e.g. actuator input="pos").
+        mujoco.__version__.encode(),
         HAND_XML.read_bytes(),
         cube_xml.read_bytes(),
         JIG_TABLE.read_bytes() if JIG_TABLE.is_file() else b"<missing-jig>",
@@ -311,11 +319,11 @@ def _add_home_keyframe(spec: mujoco.MjSpec) -> None:
 def _add_calibration_rig(hand: mujoco.MjSpec, mount: Any) -> None:
     """Attach the source task's jig table and wrist tag marker.
 
-    Rig constants are expressed in the palm frame in Dex-Supermimic.  The
-    hand MJCF stores the mount as a child of that palm, so convert each pose
-    into mount-local coordinates before attaching it.
+    Rig constants are expressed in the calibrated mount frame in
+    Dex-Supermimic.  Compose that calibration with each pose before converting
+    to the actual mount body's local coordinates.
     """
-    jig_pos, jig_quat = _pose_in_mount(mount, _MOUNT_POS, _MOUNT_QUAT)
+    jig_pos, jig_quat = _pose_in_mount(mount, _JIG_POS, _JIG_QUAT)
     tag_pos, tag_quat = _pose_in_mount(mount, _TAG_POS, _TAG_QUAT)
     if JIG_TABLE.is_file():
         hand.add_mesh(name="jig_table", file=str(JIG_TABLE), content_type="model/stl")
@@ -491,16 +499,26 @@ def _palm_root_scene(root: ET.Element) -> None:
 
 
 def _pose_in_mount(mount: Any, pos: tuple[float, ...], quat: tuple[float, ...]) -> tuple[tuple[float, ...], tuple[float, ...]]:
-    """Convert a palm-frame pose to a pose relative to the mount body."""
+    """Convert a calibrated-mount-frame pose to the actual mount body."""
     mount_pos = np.asarray(mount.pos, dtype=np.float64)
     mount_quat = np.asarray(mount.quat, dtype=np.float64)
     mount_quat /= np.linalg.norm(mount_quat)
     inv_pos = np.zeros(3, dtype=np.float64)
     inv_quat = np.zeros(4, dtype=np.float64)
     mujoco.mju_negPose(inv_pos, inv_quat, mount_pos, mount_quat)
+    calibrated_pos = np.zeros(3, dtype=np.float64)
+    calibrated_quat = np.zeros(4, dtype=np.float64)
+    mujoco.mju_mulPose(
+        calibrated_pos,
+        calibrated_quat,
+        np.asarray(_CALIBRATED_MOUNT_POS, dtype=np.float64),
+        np.asarray(_CALIBRATED_MOUNT_QUAT, dtype=np.float64),
+        np.asarray(pos, dtype=np.float64),
+        np.asarray(quat, dtype=np.float64),
+    )
     out_pos = np.zeros(3, dtype=np.float64)
     out_quat = np.zeros(4, dtype=np.float64)
-    mujoco.mju_mulPose(out_pos, out_quat, inv_pos, inv_quat, np.asarray(pos, dtype=np.float64), np.asarray(quat, dtype=np.float64))
+    mujoco.mju_mulPose(out_pos, out_quat, inv_pos, inv_quat, calibrated_pos, calibrated_quat)
     return tuple(float(value) for value in out_pos), tuple(float(value) for value in out_quat)
 
 

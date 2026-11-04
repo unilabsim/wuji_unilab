@@ -91,7 +91,14 @@ class WujiAction(ActionTerm):
         self.target.copy_(torch.where(warmup[:, None], self.default, target))
 
     def apply_actions(self):
-        self.robot.set_joint_position_target(self.target)
+        # Keep EMA/history in controller coordinates c. The simulator executes
+        # u = c - encoder_bias, which is also the target recorded in replay
+        # and consumed by the imagined controller/world model.
+        bias = getattr(self.robot.data, "encoder_bias_tensor", None)
+        target = self.target
+        if bias is not None:
+            target = target - torch.as_tensor(bias, device=target.device, dtype=target.dtype)
+        self.robot.set_joint_position_target(target)
 
     def reset(self, env_ids: torch.Tensor | None = None):
         ids = resolve_reset_env_ids(
