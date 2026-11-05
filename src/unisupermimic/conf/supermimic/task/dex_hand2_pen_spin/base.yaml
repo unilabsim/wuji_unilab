@@ -1,0 +1,247 @@
+# @package _global_
+env:
+  seed: 42
+  scene:
+    model_file: ${pen_spin_scene:}
+    default_keyframe_name: home
+    entities:
+      robot:
+        root_body_name: robot/right_palm_link
+        joint_names: &pen_joints
+          - robot/right_finger1_joint1
+          - robot/right_finger1_joint2
+          - robot/right_finger1_joint3
+          - robot/right_finger1_joint4
+          - robot/right_finger2_joint1
+          - robot/right_finger2_joint2
+          - robot/right_finger2_joint3
+          - robot/right_finger2_joint4
+          - robot/right_finger3_joint1
+          - robot/right_finger3_joint2
+          - robot/right_finger3_joint3
+          - robot/right_finger3_joint4
+          - robot/right_finger4_joint1
+          - robot/right_finger4_joint2
+          - robot/right_finger4_joint3
+          - robot/right_finger4_joint4
+          - robot/right_finger5_joint1
+          - robot/right_finger5_joint2
+          - robot/right_finger5_joint3
+          - robot/right_finger5_joint4
+        actuator_names:
+          - robot/right_finger1_joint1_actuator
+          - robot/right_finger1_joint2_actuator
+          - robot/right_finger1_joint3_actuator
+          - robot/right_finger1_joint4_actuator
+          - robot/right_finger2_joint1_actuator
+          - robot/right_finger2_joint2_actuator
+          - robot/right_finger2_joint3_actuator
+          - robot/right_finger2_joint4_actuator
+          - robot/right_finger3_joint1_actuator
+          - robot/right_finger3_joint2_actuator
+          - robot/right_finger3_joint3_actuator
+          - robot/right_finger3_joint4_actuator
+          - robot/right_finger4_joint1_actuator
+          - robot/right_finger4_joint2_actuator
+          - robot/right_finger4_joint3_actuator
+          - robot/right_finger4_joint4_actuator
+          - robot/right_finger5_joint1_actuator
+          - robot/right_finger5_joint2_actuator
+          - robot/right_finger5_joint3_actuator
+          - robot/right_finger5_joint4_actuator
+        body_names:
+          - robot/right_palm_link
+          - robot/right_finger1_link1
+          - robot/right_finger1_link2
+          - robot/right_finger1_link3
+          - robot/right_finger1_link4
+          - robot/right_finger2_link1
+          - robot/right_finger2_link2
+          - robot/right_finger2_link3
+          - robot/right_finger2_link4
+          - robot/right_finger3_link1
+          - robot/right_finger3_link2
+          - robot/right_finger3_link3
+          - robot/right_finger3_link4
+          - robot/right_finger4_link1
+          - robot/right_finger4_link2
+          - robot/right_finger4_link3
+          - robot/right_finger4_link4
+          - robot/right_finger5_link1
+          - robot/right_finger5_link2
+          - robot/right_finger5_link3
+          - robot/right_finger5_link4
+      object:
+        root_body_name: object/cube
+        body_names: [object/cube]
+        geom_names: [object/cube, object/A_bottom, object/A_top]
+  # The source task advances MuJoCo at 5 ms and emits one reference frame
+  # every four substeps (50 Hz control).  Keep both values explicit so the
+  # migrated task cannot silently time-warp the reference clips.
+  sim_dt: 0.005
+  ctrl_dt: 0.02
+  max_episode_seconds: 60.0
+  auto_reset: true
+  scale_rewards_by_dt: true
+  observations:
+    policy:
+      enable_corruption: true
+      terms:
+        motion:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: motion}
+        joint_pos:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: joint_pos, biased: true, noise_bound: 0.015}
+        joint_vel:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: joint_vel, noise_bound: 0.05}
+        object_pose:
+          func: unisupermimic.tasks.pen_spin.observations.PenObjectPoseCameraModel
+          params: {}
+        last_action:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: last_action}
+    critic:
+      enable_corruption: false
+      terms:
+        motion:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: motion}
+        joint_pos:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: joint_pos}
+        joint_vel:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: joint_vel}
+        object_pose:
+          func: unisupermimic.tasks.pen_spin.observations.PenObjectPoseFeature
+          params: {}
+        last_action:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: last_action}
+        link_pos:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: link_pos}
+        joint_position_error:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: joint_position_error}
+        link_position_error:
+          func: unisupermimic.tasks.pen_spin.observations.PenFeature
+          params: {kind: link_position_error}
+  policy_observation_group: policy
+  critic_observation_group: critic
+  actions:
+    joint_pos:
+      _target_: unisupermimic.tasks.pen_spin.actions.PenSpinActionCfg
+      entity_name: robot
+      action_scale: 0.5
+      residual_clip: [-0.6, 0.6]
+      ema_alpha: 0.5
+      mask_prob: 0.06
+      mask_num_dofs: 3
+      mask_duration_min: 1
+      mask_duration_max: 5
+      mask_curriculum_term: disturbance_success_rate
+  commands:
+    motion:
+      _target_: unisupermimic.tasks.pen_spin.commands.PenSpinCommandCfg
+      entity_name: robot
+      object_name: object
+      recipe_path: ""
+      clips_root: null
+      synthetic_reference: true
+      frame_dt: 0.02
+      episode_frames: 500
+      object_position_tanh_scale_m: 0.15
+      first_frame_hold_prob: 0.15
+      first_frame_hold_s: [0.5, 3.0]
+      trajectory_sampling_mode: adaptive
+      adaptive_sampling_uniform_mix: 0.2
+      adaptive_sampling_bin_seconds: 0.5
+      instability_term_name: nan_guard
+      resampling_time_range: [1000000000.0, 1000000000.0]
+  events:
+    source_physics:
+      func: unisupermimic.tasks.pen_spin.randomization.SourcePenRandomization
+      mode: startup
+    reset_to_reference_state:
+      func: unisupermimic.tasks.pen_spin.events.ResetPenReference
+      mode: reset
+      params:
+        object_reset_axial_slide_range: [-0.02, 0.02]
+        object_reset_roll_range: [-0.3490658503988659, 0.3490658503988659]
+        curriculum_term: disturbance_success_rate
+    source_disturbances:
+      func: unisupermimic.tasks.pen_spin.disturbances.PenDisturbances
+      mode: step
+  curriculum:
+    disturbance_success_rate:
+      func: unisupermimic.tasks.pen_spin.curriculums.linear_step_curriculum
+      params: {total_env_steps: 240000, warmup_env_steps: 40000}
+  metrics:
+    object_pos_tracking_error_cm:
+      func: unisupermimic.tasks.pen_spin.metrics.object_pos_tracking_error_cm
+    object_ori_tracking_error_deg:
+      func: unisupermimic.tasks.pen_spin.metrics.object_ori_tracking_error_deg
+    action_rate_sq:
+      func: unisupermimic.tasks.pen_spin.metrics.action_rate_l2
+    action_acc_sq:
+      func: unisupermimic.tasks.pen_spin.metrics.action_acc_l2
+    joint_vel_rms_rad_s:
+      func: unisupermimic.tasks.pen_spin.metrics.joint_vel_rms
+    joint_acc_rms_rad_s2:
+      func: unisupermimic.tasks.pen_spin.metrics.joint_acc_rms
+    actuator_saturation_share:
+      func: unisupermimic.tasks.pen_spin.metrics.actuator_saturation_share
+  terminations:
+    time_out:
+      func: unilab.envs.mdp.time_out
+      time_out: true
+    reference_end:
+      func: unisupermimic.tasks.pen_spin.rewards.reference_end
+      time_out: true
+    object_position_error:
+      func: unisupermimic.tasks.pen_spin.rewards.object_position_error_exceeded
+      params: {threshold: 0.05}
+    object_orientation_error:
+      func: unisupermimic.tasks.pen_spin.rewards.object_orientation_error_exceeded
+      params: {threshold_deg: 60.0}
+    nan_guard:
+      func: unisupermimic.tasks.pen_spin.rewards.numerical_instability
+
+reward:
+  joint_pos:
+    func: unisupermimic.tasks.pen_spin.rewards.reward
+    weight: 1.0
+    params: {kind: joint_pos}
+  object_pos:
+    func: unisupermimic.tasks.pen_spin.rewards.reward
+    weight: 2.0
+    params: {kind: object_pos}
+  object_rot:
+    func: unisupermimic.tasks.pen_spin.rewards.reward
+    weight: 8.0
+    params: {kind: object_rot}
+  link_pos:
+    func: unisupermimic.tasks.pen_spin.rewards.reward
+    weight: 1.0
+    params: {kind: link_pos}
+  action_rate:
+    func: unisupermimic.tasks.pen_spin.rewards.reward
+    weight: -0.1
+    params: {kind: action_rate}
+  torque:
+    func: unisupermimic.tasks.pen_spin.rewards.normalized_joint_torques_l2
+    weight: -1.0
+  overcurrent:
+    func: unisupermimic.tasks.pen_spin.rewards.sustained_overcurrent
+    weight: -4.0
+    params: {charge_s: 1.0, leak_s: 2.0, threshold: 0.8}
+  finger_collision:
+    func: unisupermimic.tasks.pen_spin.rewards.finger_self_collision_penalty
+    weight: -1.0
+
+training:
+  task_name: DexHand2PenSpin
+

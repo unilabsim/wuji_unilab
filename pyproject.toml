@@ -2,6 +2,10 @@
 requires = ["uv_build>=0.12.1,<0.13"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-name = ["wuji_unilab", "unisupermimic"]
+source-exclude = ["/src/unisupermimic/tasks/pen_spin/data/rawdata/**"]
+
 [project]
 name = "wuji-unilab"
 version = "0.1.0"
@@ -9,10 +13,10 @@ description = "Wuji Hand reorientation and training capability validation on Uni
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
 dependencies = [
-  "unilab[mjwarp,mujoco]==1.5.0",
-  "unisim-core==2.1.0",
+  "unilab[mjwarp,mujoco]==1.5.1",
+  "unisim-core==2.1.1",
   "torch>=2.9,<2.15 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
   "mujoco==3.11.0",
   "mujoco-warp==3.11.0",
@@ -38,6 +42,12 @@ wuji-eval = "wuji_unilab.eval:main"
 unisupermimic-hand2-train = "unisupermimic.scripts.train_hand2_supermimic:hydra_main"
 unisupermimic-hand2-eval = "unisupermimic.tasks.dex_reorient.hand2.evaluate:main"
 unisupermimic-hand2-ppo = "unisupermimic.scripts.train_hand2_ppo:hydra_main"
+unisupermimic-hand1-train = "unisupermimic.scripts.train_dex_supermimic:hand1_main"
+unisupermimic-hand1-play = "unisupermimic.tasks.dex_reorient.hand1.play:main"
+unisupermimic-pen-spin-train = "unisupermimic.scripts.train_dex_supermimic:pen_main"
+unisupermimic-pen-spin-play = "unisupermimic.tasks.pen_spin.play:main"
+unisupermimic-pen-spin-ppo = "unisupermimic.scripts.train_pen_spin_ppo:hydra_main"
+unisupermimic-pen-spin-download = "unisupermimic.tasks.pen_spin.tooling.download:main"
 
 [project.optional-dependencies]
 deploy = ["opencv-contrib-python>=4.13,<5", "pupil-apriltags>=1.0", "pyzmq>=27", "wujihandpy==1.8.0", "pyyaml>=6"]

@@ -1,0 +1,42 @@
+# @package _global_
+defaults:
+  - /task/dex_hand1_reorient/base
+  - _self_
+env:
+  # The CPU bridge intentionally leaves mutable model namespaces undeclared.
+  # mjwarp exposes them through explicit entity capabilities so the source
+  # task's reset randomization can bind its collision geoms and tip sites.
+  scene:
+    entities:
+      robot:
+        geom_names:
+          - robot/right_palm_collision
+          - robot/right_finger1_link2_col
+          - robot/right_finger1_link2_softbody_col
+          - robot/right_finger1_link3_col
+          - robot/right_finger1_link4_col
+          - robot/right_finger2_link2_col
+          - robot/right_finger2_link3_col
+          - robot/right_finger2_link4_col
+          - robot/right_finger3_link2_col
+          - robot/right_finger3_link3_col
+          - robot/right_finger3_link4_col
+          - robot/right_finger4_link2_col
+          - robot/right_finger4_link3_col
+          - robot/right_finger4_link4_col
+          - robot/right_finger5_link2_col
+          - robot/right_finger5_link3_col
+          - robot/right_finger5_link4_col
+        site_names:
+          - robot/right_finger1_tip
+          - robot/right_finger2_tip
+          - robot/right_finger3_tip
+          - robot/right_finger4_tip
+          - robot/right_finger5_tip
+      object:
+        geom_names:
+          - object/cube
+  mjwarp_nconmax: 180
+  mjwarp_njmax: 1500
+training:
+  sim_backend: mjwarp

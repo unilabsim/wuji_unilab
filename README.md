@@ -33,7 +33,7 @@ uv run --no-sync wuji-assets       # verify the bundled assets
 uv run --no-sync wuji-list-envs    # list tasks
 ```
 
-All dependencies resolve from PyPI via the lockfile (UniLab 1.5.0, unisim-core 2.1.0, torch 2.14.1+cu130, rsl-rl 5.5.1) — no separate UniLab clone is needed. This repository itself is source-install only and is not published to PyPI. The repository does not ship a trained checkpoint; the training section below produces your own.
+All dependencies resolve from PyPI via the lockfile (UniLab 1.5.1, unisim-core 2.1.1, torch 2.14.1+cu130, rsl-rl 5.5.1) — no separate UniLab clone is needed. This repository itself is source-install only and is not published to PyPI. The repository does not ship a trained checkpoint; the training section below produces your own.
 
 ## Training and evaluation
 
@@ -64,6 +64,13 @@ uv run --no-sync wuji-export --checkpoint-file logs/.../model_4999.pt
 ```
 
 On multi-GPU machines select a card with `CUDA_VISIBLE_DEVICES`. Evaluation here uses PyTorch checkpoints + mjwarp and is not directly comparable to the upstream CPU MuJoCo + ONNX numbers; checkpoints are not interchangeable between the two projects.
+
+## SuperMimic tasks
+
+The migrated Hand1 cube reorientation and Hand2 PenSpin tasks use an
+independent SuperMimic learner. See [setup, training and local playback](docs/hand1-penspin.md)
+for their entry points, trajectory download and validation. The existing
+[Hand2 cube task](docs/supermimic-hand2.md) remains available.
 
 ## How to modify
 

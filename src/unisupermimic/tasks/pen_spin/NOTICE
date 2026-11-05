@@ -1,0 +1,28 @@
+Wuji Hand RL Training Framework
+Copyright 2026 Wuji Technology Co., Ltd.
+
+This product includes software developed by:
+
+- rsl-rl (BSD-3-Clause)
+  Copyright (c) 2021-2026, ETH Zurich and NVIDIA CORPORATION
+  https://github.com/leggedrobotics/rsl_rl
+
+- mjlab (Apache-2.0)
+  https://github.com/mujocolab/mjlab
+
+- mujoco-warp (Apache-2.0)
+  https://github.com/google-deepmind/mujoco_warp
+
+- PyTorch (BSD-3-Clause)
+  https://pytorch.org
+
+- pupil-apriltags (BSD-2-Clause, dynamically linked, used in deploy/)
+  https://github.com/pupil-labs/apriltags
+  Copyright (c) 2013-2015, The Regents of The University of Michigan
+  Copyright (c) 2015-2018, Matt Zucker
+
+This NOTICE file is provided per the requirements of Apache License 2.0 §4(d).
+
+Dex SuperMimic adaptations include standalone packaged pen/Hand 2 assets,
+external clip-catalog selection, reference-aware differentiable rewards,
+controller/camera/load memory, and SuperMimic training and playback integration.

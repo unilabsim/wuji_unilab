@@ -16,3 +16,10 @@ MUJOCO_LOG.TXT
 train_rsl_rl.log
 third_party
 my_ends_compile/
+
+# Local SuperMimic runs and downloadable Pen Spin trajectories.
+m_ends/
+my_ends/
+train_dex_supermimic.log
+train_hand2_supermimic.log
+src/unisupermimic/tasks/pen_spin/data/rawdata/
