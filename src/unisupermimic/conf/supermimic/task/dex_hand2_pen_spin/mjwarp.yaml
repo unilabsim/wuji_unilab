@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - /task/dex_hand2_pen_spin/base
+  - _self_
+training:
+  sim_backend: mjwarp
+env:
+  mjwarp_nconmax: 192
+  mjwarp_njmax: 4096

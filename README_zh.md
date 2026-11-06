@@ -33,7 +33,7 @@ uv run --no-sync wuji-assets       # 校验随仓库分发的资产
 uv run --no-sync wuji-list-envs    # 列出任务
 ```
 
-依赖全部由锁文件从 PyPI 解析（UniLab 1.5.0、unisim-core 2.1.0、torch 2.14.1+cu130、rsl-rl 5.5.1），无需单独克隆 UniLab；本仓库本身以源码安装，不发布 PyPI 包。仓库不分发训练好的 checkpoint，下面训练一节会得到自己的 checkpoint。
+依赖全部由锁文件从 PyPI 解析（UniLab 1.5.1、unisim-core 2.1.1、torch 2.14.1+cu130、rsl-rl 5.5.1），无需单独克隆 UniLab；本仓库本身以源码安装，不发布 PyPI 包。仓库不分发训练好的 checkpoint，下面训练一节会得到自己的 checkpoint。
 
 ## 训练与评估
 
@@ -64,6 +64,12 @@ uv run --no-sync wuji-export --checkpoint-file logs/.../model_4999.pt
 ```
 
 多 GPU 机器可用 `CUDA_VISIBLE_DEVICES` 选卡。本实现的评估使用 PyTorch checkpoint + mjwarp，与上游 CPU MuJoCo + ONNX 的结果不能直接比较；两个项目的 checkpoint 互不兼容。
+
+## SuperMimic 任务
+
+新增的 Hand1 方块重定向和 Hand2 PenSpin 使用独立的 SuperMimic learner。
+入口、动作片段下载、训练和本地回放命令见[任务说明](docs/hand1-penspin.md)。
+原有的 [Hand2 方块任务](docs/supermimic-hand2.md)继续保留。
 
 ## 如何修改
 

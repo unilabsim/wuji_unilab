@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux'",
@@ -678,6 +678,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7c/99/8b59dbcebf7e84b35e86c893f52fdc2953299d66ef1fcbacca26162818b0/mediapy-1.2.7.tar.gz", hash = "sha256:fd3826ca156f9165cd369f44d4d345d5609df1da3caf867df7ce304e19dd7fde", size = 28660, upload-time = "2026-07-01T13:14:43.448Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/70/eeb41d81fea2b3165cfe7ae1c662f9dc6310b14b230a96260376c2891cc7/mediapy-1.2.7-py3-none-any.whl", hash = "sha256:fc81a9190d9724b02286efac4e7a67f384024e078fda0a3cac9fdf25e2f8878f", size = 28015, upload-time = "2026-07-01T13:14:42.524Z" },
+]
+
+[[package]]
+name = "mjbatch-uni"
+version = "0.2.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mujoco" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/36/a9ab3bb98b1ac05a41a931d359da60d72356060ab7f894122467679ac386/mjbatch_uni-0.2.5.tar.gz", hash = "sha256:fdef14cbe01db4509ac40feb739d11af4a962bfc1394a96f6cd221f6ba8daa07", size = 48410, upload-time = "2026-10-08T05:34:21.722Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/73/3a267ef6711be6344279ce4b0ba4ec5695f4e368b9fa8a929ac3cf8357b3/mjbatch_uni-0.2.5-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7dd60d02a4a9847de6dea1171db8c657699ecb1f36816550b6e904abaded940e", size = 205233, upload-time = "2026-10-08T05:34:08.804Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/ab/bc4a95b1500994248350b05463e5d734b033149e706e9219cd79053c4680/mjbatch_uni-0.2.5-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:143a819d860bbceda580e1a3bf1af844c0df4cc7d6898ae4f5a60cc5a1ce3399", size = 204855, upload-time = "2026-10-08T05:34:13.929Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/27/1189d50703fa5ba5ff6d6d1a748b63113125338d0d73305aab5a28511077/mjbatch_uni-0.2.5-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:956a20db708a9e902cab1d96d458d2e5bc671ddb938a6aad809a78040f37df53", size = 204746, upload-time = "2026-10-08T05:34:19.153Z" },
 ]
 
 [[package]]
@@ -1676,7 +1692,7 @@ wheels = [
 
 [[package]]
 name = "unilab"
-version = "1.5.0"
+version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "etils" },
@@ -1707,9 +1723,9 @@ dependencies = [
     { name = "viser" },
     { name = "wandb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/7b/b4a70ae7df33b83cdd415e7887b009edeffe73fd014c5c9d41e8c53b9584/unilab-1.5.0.tar.gz", hash = "sha256:13cde0defe41882236f2deab719d94543cfc5b5f6785b98f25d0435e82fbeb14", size = 756605, upload-time = "2026-10-22T04:00:10.4Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/1a/54b7024b01758748b40a4871a0662c53de566808d77f952fb7c9c760ca46/unilab-1.5.1.tar.gz", hash = "sha256:2bc7c0c7fe878e74d3c4ff9145151109275776f566916309410b452a22571c9e", size = 761659, upload-time = "2026-10-24T07:39:56.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/e2/7d8ef3f610a30160b6aa2c3f13692f78e3359cf4959149e409c2025b107c/unilab-1.5.0-py3-none-any.whl", hash = "sha256:c7a3a2a5e7829f541eafaa86edc71370300d01501412a98cf57b9bfef3f36a09", size = 887504, upload-time = "2026-10-22T04:00:08.237Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/e0/78d294e08599e22a6e832d3cabe22b251cfe820e65826cdc77d986b7416f/unilab-1.5.1-py3-none-any.whl", hash = "sha256:8aebd8ed11e8a58562200c9083b9de351ac64b77306f42dd6fb10e9f3c194e01", size = 892695, upload-time = "2026-10-24T07:39:55.016Z" },
 ]
 
 [package.optional-dependencies]
@@ -1717,16 +1733,23 @@ mjwarp = [
     { name = "mujoco-warp" },
     { name = "warp-lang" },
 ]
+mujoco = [
+    { name = "mjbatch-uni" },
+    { name = "mujoco" },
+]
 
 [[package]]
 name = "unisim-core"
-version = "2.1.0"
+version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/54/8bbfa4f671b4c26002983afeb88f24e548816de3ccb29112ac4b8ca9ae66/unisim_core-2.1.0.tar.gz", hash = "sha256:4353d0e01214954181a30b6e00442cf3f5e3bb45fba551cee2e6f35440db1d2d", size = 699562, upload-time = "2026-10-21T14:47:45.451Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/dc/5c8b56a04996cc3f47767ac4c3c665c0eae131a188f1554525ff7514a9ed/unisim_core-2.1.1.tar.gz", hash = "sha256:f3c9bc2497b3ef85ec984cf38f8a8ce5cfd24b900db2734685575c5bb8cef2ed", size = 699580, upload-time = "2026-10-22T10:26:44.017Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/99/b532c452a8544eb508ff3b6009146aa24f44e09c5c43e63aaf46153b8490/unisim_core-2.1.1-py3-none-any.whl", hash = "sha256:fee2dcecb8ceb60ee2532a9e7d15f66daf1c1213d990fe4a607aef92130f6bf2", size = 746595, upload-time = "2026-10-22T10:26:42.255Z" },
+]
 
 [[package]]
 name = "urllib3"
@@ -1832,6 +1855,11 @@ wheels = [
 ]
 
 [[package]]
+name = "wuji-description"
+version = "0.1.0"
+source = { directory = "third_party/wuji-description" }
+
+[[package]]
 name = "wuji-unilab"
 version = "0.1.0"
 source = { editable = "." }
@@ -1844,9 +1872,10 @@ dependencies = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "torch" },
-    { name = "unilab", extra = ["mjwarp"] },
+    { name = "unilab", extra = ["mjwarp", "mujoco"] },
     { name = "unisim-core" },
     { name = "warp-lang" },
+    { name = "wuji-description" },
 ]
 
 [package.optional-dependencies]
@@ -1878,9 +1907,10 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.15,<2" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=2.9,<2.15", index = "https://download-r2.pytorch.org/whl/cu130" },
-    { name = "unilab", extras = ["mjwarp"], specifier = "==1.5.0" },
-    { name = "unisim-core", specifier = "==2.1.0" },
+    { name = "unilab", extras = ["mjwarp", "mujoco"], specifier = "==1.5.1" },
+    { name = "unisim-core", specifier = "==2.1.1" },
     { name = "warp-lang", specifier = "==1.16.0" },
+    { name = "wuji-description", directory = "third_party/wuji-description" },
     { name = "wujihandpy", marker = "extra == 'deploy'", specifier = "==1.8.0" },
 ]
 provides-extras = ["deploy"]

@@ -1,0 +1,80 @@
+# @package _global_
+# Source Dex-SuperMimic world-model training, separate from the PPO baseline.
+defaults:
+  - task: dex_hand2_pen_spin/mjwarp
+  - _self_
+
+env:
+  auto_reset: false
+  observations:
+    policy:
+      enable_corruption: true
+  commands:
+    motion:
+      synthetic_reference: false
+      recipe_path: src/unisupermimic/tasks/pen_spin/data/recipe/03_continuous_multi_axis.json
+      clips_root: src/unisupermimic/tasks/pen_spin/data/rawdata/clips
+
+algo:
+  task: hand2-pen-spin
+  algorithm: world_model
+  seed: 42
+  num_envs: 1024
+  iterations: 8000
+  buffer_steps: 1000
+  warmup_steps: 64
+  utd: 0.4
+  wm_only_iters: 500
+  wm_window: 8
+  wm_failure_frac: 0.25
+  wm_failure_horizon: 16
+  final_state_weight: 1.0
+  contact_weight: 0.1
+  wm_batches: 10
+  wm_batch: 2048
+  wm_hidden: [2048, 2048, 2048]
+  pi_batch: 1024
+  horizon: 32
+  max_horizon: 32
+  horizon_ramp_iters: 1000
+  critic_epochs: 5
+  critic_minibatches: 4
+  gamma: 0.99
+  lam: 0.95
+  lr: 0.0002
+  lr_decay_iters: 250000
+  lr_final_ratio: 0.03
+  action_noise: 0.1
+  failure_warmup_iters: 300
+  failure_head: true
+  failure_clip: 0.1
+  amp: true
+  compile: true
+  compile_policy: true
+  compile_policy_dynamic: false
+  profile: false
+  save_interval: 100
+  log_interval: 50
+  holdout_fraction: 0.1
+  checkpoint: null
+  model_checkpoint: null
+  reset_model_statistics: false
+  variant: fixed
+  logger: tensorboard
+
+training:
+  task_name: DexHand2PenSpin
+  sim_backend: mjwarp
+  collector_tensor_device: cuda:0
+  log_dir: m_ends
+  torch_num_threads: 4
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
+  job_logging:
+    root:
+      handlers: [console]

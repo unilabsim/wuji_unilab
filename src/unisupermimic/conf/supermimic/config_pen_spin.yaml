@@ -1,0 +1,56 @@
+# Native UniLab PPO configuration for Wuji Hand 2 pen spin.
+defaults:
+  - _self_
+  - task: dex_hand2_pen_spin/mujoco
+
+algo:
+  algo: ppo
+  algo_log_name: hand2_pen_spin
+  num_envs: 1
+  max_iterations: 1
+  num_steps_per_env: 4
+  save_interval: 50
+  seed: 42
+  load_run: "-1"
+  checkpoint: -1
+  experiment_name: dex_hand2_pen_spin
+  obs_groups: {default: [actor], actor: [actor], critic: [critic]}
+  actor:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims: [128, 64]
+    activation: elu
+    obs_normalization: true
+    distribution_cfg: {class_name: rsl_rl.modules:GaussianDistribution, init_std: 0.5}
+  critic:
+    class_name: rsl_rl.models.MLPModel
+    hidden_dims: [128, 64]
+    activation: elu
+    obs_normalization: true
+  algorithm:
+    class_name: rsl_rl.algorithms:PPO
+    value_loss_coef: 0.5
+    use_clipped_value_loss: false
+    clip_param: 0.2
+    entropy_coef: 0.001
+    num_learning_epochs: 1
+    num_mini_batches: 1
+    learning_rate: 1.0e-4
+    schedule: fixed
+    gamma: 0.99
+    lam: 0.95
+    max_grad_norm: 1.0
+
+training:
+  task_name: DexHand2PenSpin
+  sim_backend: mujoco
+  device: cpu
+  logger: tensorboard
+  tf32_matmul: ieee
+  play_only: false
+  no_play: true
+  log_root: logs
+  log_interval: 1
+  num_timesteps: 0
+  play_render_mode: none
+  play_env_num: 1
+  play_steps: 200

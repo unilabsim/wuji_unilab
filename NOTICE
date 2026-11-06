@@ -1,0 +1,18 @@
+Wuji UniLab / SuperMimic task adaptations
+
+The Hand 1 and Pen Spin SuperMimic learner in
+src/unisupermimic/rl/algos/dex_supermimic is adapted from CumulusAlpha's
+Dex-Supermimic reference implementation:
+https://github.com/CumulusAlpha/Dex-Supermimic
+The simulation boundary is adapted to UniLab. Original task LICENSE and
+NOTICE files are retained in tasks/dex_reorient/hand1 and tasks/pen_spin.
+The Hand 1 asset loader and rig configuration are adapted from wuji-mjlab.
+
+Pen Spin's pseudo-inertia helpers in tasks/pen_spin/inertia.py are adapted
+from mujocolab/mjlab v1.6.0, commit
+0fb8a681136be94ffc636a3dd423cabb97d91f10, src/mjlab/envs/mdp/dr/body.py.
+The upstream Apache-2.0 license is included as LICENSE. Quaternion utility
+imports are bound to the local wxyz rotation API.
+
+Existing SuperMimic and SuperMimic-Reproduced MIT notices are preserved in
+LICENSES/MIT-supermimic.txt and LICENSES/MIT-supermimic-reproduced.txt.
